@@ -6,18 +6,25 @@
 -- Global vars: underscore: CONSTANTS_LIKE_THIS and variables_like_this
 -- Local vars: camelCase
 
+-- TODO: chapter change detection and reset
+-- TODO: crafting station
+-- TODO: cycle shop (reroll cost left to the player? or menu: start shop phase, reroll, end shop phase)
+-- TODO: currency breakdown?
+
 local Constants = require('Constants')
 local EventManager = require('EventManager')
 _G.EventManager = EventManager  -- for reflection/debugging access
 local GlobalUi = require('GlobalUi')
 local Log = require('Log').ForModule('Global')
 local Options = require('Options')
+local Chapter = require('Chapter')
+local MushroomCounter = require('MushroomCounter')
 local Ui = require('Ui')
 
 ------------------------------------------------------
 
 local NOT_INTERACTABLE = {
-    '',
+    -- '',
 }
 
 function onLoad(script_state)
@@ -40,6 +47,8 @@ function onLoad(script_state)
     Ui.init()
     Options.init(savedData.options or {})
     GlobalUi.init()
+    Chapter.init()
+    MushroomCounter.init()
     
     if not Options.isManualSetup() then
         Ui.globalRefresh()
@@ -49,7 +58,7 @@ function onLoad(script_state)
             
             broadcastToAll('Game loaded', Color.Green)
         else
-            GlobalUi.showSetup()
+            GlobalUi.showMenu()
         end
     end
 end

@@ -810,7 +810,7 @@ function Ui:hide(id)
                 end
             end
 
-            -- Otherwise recursivery go through the children
+            -- Otherwise recursively go through the children
             for _, child in ipairs(self.children) do
                 child:hide(id)
             end
@@ -839,7 +839,7 @@ function Ui:show(id)
                 end
             end
 
-            -- Otherwise recursivery go through the children
+            -- Otherwise recursively go through the children
             for _, child in ipairs(self.children) do
                 child:show(id)
             end
@@ -926,7 +926,13 @@ function Ui:setAttribute(attribute, attType, value, nilAllowed)
     self.object.UI.setAttribute(id, attribute, value)
 end
 
-function Ui:setActive(active) self:setAttribute('active', 'boolean', active) end
+function Ui:setActive(active) 
+    self:setAttribute('active', 'boolean', active)
+    -- Reapply colours
+    if self.attributes.text ~= nil then
+        self:setText(self.attributes.text)
+    end
+end
 function Ui:setChecked(checked)
     if checked then
         self:setImage(self.checkedImage)
@@ -951,6 +957,7 @@ end
 function Ui:setIsOn(value) self:setAttribute('isOn', 'boolean', value) end
 function Ui:setOffsetXY(offsetXY) self:setAttribute('offsetXY', 'string', offsetXY) end
 function Ui:setPosition(position) self:setAttribute('position', 'string', position) end
+function Ui:setRotation(rotation) self:setAttribute('rotation', 'string', rotation) end
 function Ui:setRectAlignment(value) self:setAttribute('rectAlignment', 'string', value) end
 function Ui:setText(value) 
     self:setAttribute('text', 'string', value ~= nil and tostring(value) or '')

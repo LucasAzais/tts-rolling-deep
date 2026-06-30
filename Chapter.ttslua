@@ -1,0 +1,451 @@
+local Chapter = {}
+Chapter.__index = Chapter
+
+local Constants = require('Constants')
+local EventManager = require('EventManager')
+local Log = require('Log').ForModule('Chapter')
+local Ui = require('Ui')
+local Utils = require('Utils')
+
+------------------------------------------------------
+
+Chapter.CHAPTER_SETUP = {
+    [Constants.NORMAL] = {
+        {
+            chapter = 1,
+            target = 6,
+            enraged_boss = false,
+        },
+        {
+            chapter = 1,
+            target = 7,
+            enraged_boss = false,
+        },
+        {
+            chapter = 1,
+            target = 8,
+            enraged_boss = false,
+        },
+        {
+            chapter = 2,
+            target = 10,
+            enraged_boss = false,
+        },
+        {
+            chapter = 2,
+            target = 12,
+            enraged_boss = false,
+        },
+        {
+            chapter = 2,
+            target = 14,
+            enraged_boss = false,
+        },
+        {
+            chapter = 3,
+            target = 17,
+            enraged_boss = false,
+        },
+        {
+            chapter = 3,
+            target = 20,
+            enraged_boss = false,
+        },
+        {
+            chapter = 3,
+            target = 23,
+            enraged_boss = false,
+        },
+        {
+            chapter = 4,
+            target = 27,
+            enraged_boss = false,
+        },
+        {
+            chapter = 4,
+            target = 31,
+            enraged_boss = false,
+        },
+        {
+            chapter = 4,
+            target = 35,
+            enraged_boss = false,
+        },
+        {
+            chapter = 5,
+            target = 40,
+            enraged_boss = false,
+        },
+        {
+            chapter = 5,
+            target = 45,
+            enraged_boss = false,
+        },
+        {
+            chapter = 5,
+            target = 50,
+            enraged_boss = true,
+        },
+    },
+    [Constants.ADVANCED] = {
+        {
+            chapter = 1,
+            target = 6,
+            enraged_boss = false,
+        },
+        {
+            chapter = 1,
+            target = 8,
+            enraged_boss = false,
+        },
+        {
+            chapter = 1,
+            target = 10,
+            enraged_boss = false,
+        },
+        {
+            chapter = 2,
+            target = 12,
+            enraged_boss = false,
+        },
+        {
+            chapter = 2,
+            target = 15,
+            enraged_boss = false,
+        },
+        {
+            chapter = 2,
+            target = 18,
+            enraged_boss = false,
+        },
+        {
+            chapter = 3,
+            target = 21,
+            enraged_boss = false,
+        },
+        {
+            chapter = 3,
+            target = 25,
+            enraged_boss = false,
+        },
+        {
+            chapter = 3,
+            target = 29,
+            enraged_boss = false,
+        },
+        {
+            chapter = 4,
+            target = 33,
+            enraged_boss = false,
+        },
+        {
+            chapter = 4,
+            target = 38,
+            enraged_boss = false,
+        },
+        {
+            chapter = 4,
+            target = 43,
+            enraged_boss = false,
+        },
+        {
+            chapter = 5,
+            target = 48,
+            enraged_boss = false,
+        },
+        {
+            chapter = 5,
+            target = 54,
+            enraged_boss = false,
+        },
+        {
+            chapter = 5,
+            target = 60,
+            enraged_boss = true,
+        },
+    },
+}
+
+Chapter.snap_points = {}
+
+function Chapter.init()
+    Chapter.cacheObjects()
+
+    -- Cache important snap points into a track
+    Chapter.cacheTracks()
+
+    -- Reset scoring on marker movement
+    EventManager.addHandler('onDrop', function(object)
+        if object == Chapter.chapter_marker then
+            local level = Chapter.getCurrentLevel()
+            local difficulty = Chapter.getCurrentDifficulty()
+            Chapter.setupLevel(level, difficulty, true)
+        end
+    end, Chapter.chapter_marker)
+end
+
+function Chapter.cacheObjects()
+    Chapter.score_board = getObjectsWithTag(Constants.SCORING_BOOK)[1]
+    Chapter.chapter_board = getObjectsWithTag(Constants.CHAPTER_BOOK)[1]
+
+    Chapter.score_marker = getObjectsWithTag(Constants.SCORE_MARKER)[1]
+    Chapter.shop_marker = getObjectsWithTag(Constants.SHOP_MARKER)[1]
+    Chapter.reroll_marker = getObjectsWithTag(Constants.REROLL_MARKER)[1]
+    Chapter.chapter_marker = getObjectsWithTag(Constants.CHAPTER_MARKER)[1]
+
+    if not Chapter.score_board or not Chapter.chapter_board or not Chapter.score_marker 
+            or not Chapter.shop_marker or not Chapter.reroll_marker or not Chapter.chapter_marker then
+        Log:error('Some objects are missing, please reload the mod without Mod Caching.')
+        return
+    end
+end
+
+function Chapter.cacheTracks()
+    Chapter.snap_points[Constants.TRACK_START] = {}
+
+    Chapter.snap_points[Constants.SCORE_TRACK] = {}
+    Chapter.snap_points[Constants.SHOP_TRACK] = {}
+    Chapter.snap_points[Constants.REROLL_TRACK] = {}
+
+    for _, snap in ipairs(Chapter.score_board.getSnapPoints()) do
+        -- Get the start if possible
+        if Utils.contains(snap.tags, Constants.TRACK_START) then
+            if Utils.contains(snap.tags, Constants.SCORE_TRACK) then
+                Chapter.snap_points[Constants.TRACK_START][Constants.SCORE_TRACK] = snap
+            elseif Utils.contains(snap.tags, Constants.SHOP_TRACK) then
+                Chapter.snap_points[Constants.TRACK_START][Constants.SHOP_TRACK] = snap
+            elseif Utils.contains(snap.tags, Constants.REROLL_TRACK) then
+                Chapter.snap_points[Constants.TRACK_START][Constants.REROLL_TRACK] = snap
+            end
+        end
+
+        -- Add the snap point to the track
+        if Utils.contains(snap.tags, Constants.SCORE_TRACK) then
+            table.insert(Chapter.snap_points[Constants.SCORE_TRACK], snap)
+        elseif Utils.contains(snap.tags, Constants.SHOP_TRACK) then
+            table.insert(Chapter.snap_points[Constants.SHOP_TRACK], snap)
+        elseif Utils.contains(snap.tags, Constants.REROLL_TRACK) then
+            table.insert(Chapter.snap_points[Constants.REROLL_TRACK], snap)
+        end
+    end
+
+    -- Sort all tracks
+    Chapter.snap_points[Constants.SCORE_TRACK] = 
+                    Utils.sortByProximity(Chapter.snap_points[Constants.SCORE_TRACK],
+                        Chapter.snap_points[Constants.TRACK_START][Constants.SCORE_TRACK])
+    Chapter.snap_points[Constants.SHOP_TRACK] = 
+                    Utils.sortByProximity(Chapter.snap_points[Constants.SHOP_TRACK],
+                        Chapter.snap_points[Constants.TRACK_START][Constants.SHOP_TRACK])
+    Chapter.snap_points[Constants.REROLL_TRACK] = 
+                    Utils.sortByProximity(Chapter.snap_points[Constants.REROLL_TRACK],
+                        Chapter.snap_points[Constants.TRACK_START][Constants.REROLL_TRACK])
+
+
+    -- Same thing for the chapter book
+    Chapter.snap_points[Constants.CHAPTER_TRACK] = {}
+
+    for _, snap in ipairs(Chapter.chapter_board.getSnapPoints()) do
+        if Utils.contains(snap.tags, Constants.TRACK_START) and Utils.contains(snap.tags, Constants.CHAPTER_TRACK) then
+            Chapter.snap_points[Constants.TRACK_START][Constants.CHAPTER_TRACK] = snap
+        end
+
+        if Utils.contains(snap.tags, Constants.CHAPTER_TRACK) then
+            table.insert(Chapter.snap_points[Constants.CHAPTER_TRACK], snap)
+        end
+    end
+
+    Chapter.snap_points[Constants.CHAPTER_TRACK] = 
+                    Utils.sortByProximity(Chapter.snap_points[Constants.CHAPTER_TRACK],
+                        Chapter.snap_points[Constants.TRACK_START][Constants.CHAPTER_TRACK])
+end
+
+function Chapter.setCurrentScore(score)
+    Chapter.snapToStep(Chapter.score_marker, score + 1)
+end
+
+function Chapter.resetCurrentScore()
+    Chapter.setCurrentScore(0)
+end
+
+function Chapter.resetShop()
+    Chapter.snapToStep(Chapter.shop_marker, 1)
+end
+
+function Chapter.resetReroll()
+    Chapter.snapToStep(Chapter.reroll_marker, 1)
+end
+
+function Chapter.setTargetScore(score)
+    local targetScoreMarker = getObjectsWithTag(Constants.TARGET_MARKER)[1]
+
+    Chapter.snapToStep(targetScoreMarker, score + 1)
+end
+
+function Chapter.getCurrentLevel()
+    if Chapter.chapter_board.Book.getPage() >= 5 then
+        return Chapter.getCurrentStep(Chapter.chapter_marker) 
+                + 3 * (Chapter.chapter_board.Book.getPage() - Constants.ADVANCED_CHAPTER_OFFSET)
+    else
+        return Chapter.getCurrentStep(Chapter.chapter_marker) + (3 * Chapter.chapter_board.Book.getPage())
+    end
+end
+
+function Chapter.getCurrentDifficulty()
+    if Chapter.chapter_board.Book.getPage() >= 5 then
+        return Constants.ADVANCED
+    else
+        return Constants.NORMAL
+    end
+end
+
+function Chapter.getLevelDetails(difficulty, level)
+    if difficulty ~= nil then
+        return Chapter.CHAPTER_SETUP[difficulty][level]
+    else
+        return nil
+    end
+end
+
+function Chapter.setLevel(level, difficulty)
+    Chapter.snapToStep(Chapter.chapter_marker, level)
+
+    -- For the chapter, also flip the book to the correct page
+    if difficulty == Constants.NORMAL then
+        Chapter.chapter_board.Book.setPage(math.floor(level / 3))
+    elseif difficulty == Constants.ADVANCED then
+        Chapter.chapter_board.Book.setPage(math.floor(level / 3) + Constants.ADVANCED_CHAPTER_OFFSET)
+    end
+
+    -- Set the score track to the correct side
+    Chapter.score_board.Book.setPage(difficulty == Constants.NORMAL and 0 or 1)
+end
+
+function Chapter.setupLevel(level, difficulty, preventChapterSnap)
+    if not preventChapterSnap then
+        Chapter.setLevel(level, difficulty, preventChapterSnap)
+    end
+
+    -- Set the score track to the correct side (done is setLevel already, could be changed)
+    Chapter.score_board.Book.setPage(difficulty == Constants.NORMAL and 0 or 1)
+
+    -- Reset score to 0
+    Chapter.resetCurrentScore()
+
+    -- Flip all hourglass back
+    for _, hourglass in ipairs(getObjectsWithTag(Constants.HOURGLASS)) do
+        hourglass.setRotationSmooth({0, 180, 180})
+    end
+
+    -- Set target score based on chosen level
+    Chapter.setTargetScore(Chapter.getLevelDetails(difficulty, level).target)
+end
+
+function Chapter.snapToStep(marker, step)
+    if not marker or not step or step < 1 then return end
+
+    local markerType = Chapter.getMarkerType(marker)
+    if not markerType then return end
+
+    local track = Chapter.snap_points[markerType]
+    local trackObject = Chapter.getTrackObject(markerType)
+
+    local physicalStep = step
+    if(markerType == Constants.CHAPTER_TRACK) then
+        physicalStep = (step - 1) % 3 + 1
+    end
+
+    if not track[physicalStep] then
+        Log:error('Could not snap %s to step %d, out of bounds.', markerType, physicalStep)
+        return
+    end
+    
+    -- Small y offset to avoid getting stuck in the boards
+    local offset = Vector(0, 0.25, 0)
+
+    marker.setPositionSmooth(trackObject.positionToWorld(track[physicalStep].position) + offset, false, true)
+end
+
+function Chapter.getCurrentStep(marker)
+    if not marker then return end
+
+    local markerType = Chapter.getMarkerType(marker)
+    if not markerType then return end
+
+    local snapTrack = Chapter.snap_points[markerType]
+    if not snapTrack then return end
+
+    -- Otherwise find the closest snap point on the corresponding track
+    local position = marker.getPosition()
+    local closestIndex, closestDistance = nil, nil
+
+    local trackObject = Chapter.getTrackObject(markerType)
+    for index, snap in ipairs(snapTrack) do
+        local distance = (Vector(position) - Vector(trackObject.positionToWorld(snap.position))):magnitude()
+
+        if closestDistance == nil or distance < closestDistance then
+            closestIndex = index
+            closestDistance = distance
+        end
+    end
+
+    if closestIndex ~= nil then
+        Log:debug('Detected %s as step %d.', markerType, closestIndex)
+        return closestIndex
+    else
+        return nil
+    end
+end
+
+function Chapter.getMarkerType(marker)
+    if not marker then return nil end
+
+    -- Not a marker
+    if not Utils.contains(marker.getTags(), Constants.MARKER) then
+        return nil
+    end
+
+    if Utils.contains(marker.getTags(), Constants.SCORE_TRACK) then
+        return Constants.SCORE_TRACK
+    elseif Utils.contains(marker.getTags(), Constants.SHOP_TRACK) then
+        return Constants.SHOP_TRACK
+    elseif Utils.contains(marker.getTags(), Constants.REROLL_TRACK) then
+        return Constants.REROLL_TRACK
+    elseif Utils.contains(marker.getTags(), Constants.CHAPTER_TRACK) then
+        return Constants.CHAPTER_TRACK
+    end
+
+    return nil
+end
+
+function Chapter.getTrackObject(markerType)
+    if markerType == Constants.SCORE_TRACK or markerType == Constants.SHOP_TRACK 
+                or markerType == Constants.REROLL_TRACK then
+        return Chapter.score_board
+    elseif markerType == Constants.CHAPTER_TRACK then
+        return Chapter.chapter_board
+    else
+        return nil
+    end
+
+end
+
+function Chapter.save()
+    local flatSetup = {}
+
+    return flatSetup
+end
+
+------------------------------------------------------
+
+return {
+    init = Chapter.init,
+    save = Chapter.save,
+    resetCurrentScore = Chapter.resetCurrentScore,
+    setTargetScore = Chapter.setTargetScore,
+    resetShop = Chapter.resetShop,
+    resetReroll = Chapter.resetReroll,
+    setLevel = Chapter.setLevel,
+    setupLevel = Chapter.setupLevel,
+    getCurrentLevel = Chapter.getCurrentLevel,
+    getLevelDetails = Chapter.getLevelDetails,
+}

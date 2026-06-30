@@ -14,13 +14,58 @@ Constants.NONE = 5
 Constants.TEXT_COLOR = '#ff4c4cff'
 Constants.BUTTON_TEXT_COLOR = '#3b2b30ff'
 Constants.BUTTON_BACKGROUND_COLOR = '#ff4c4cff'
+Constants.BUTTON_DESELECTED_COLOR = '#832929ff'
 Constants.GLOBAL_BUTTON_ON_COLOR = '#fd3838ff'
 Constants.GLOBAL_BUTTON_OFF_COLOR = '#a12d2dff'
-Constants.BUTTON_BACKGROUND_COLORS = '#FFFFFF|#c2c2c2ff|#FFFFFF|#c74040ff'
+Constants.BUTTON_BACKGROUND_COLORS = '#FFFFFFFF|#c2c2c2ff|#FFFFFFFF|#c74040ff'
 Constants.GLOBAL_BUTTON_BACKGROUND_COLORS = Constants.GLOBAL_BUTTON_OFF_COLOR .. '|#ff4e4eff|#c43d3dff|#a77b7b99'
 Constants.BACKGROUND_COLOR = '#242424ff'
 
+-- Difficulties
+Constants.NORMAL = 'Normal'
+Constants.ADVANCED = 'Advanced'
+
 -- Tags
+Constants.CHAPTER_MARKER = 'ChapterMarker'
+Constants.TARGET_MARKER = 'TargetMarker'
+Constants.SCORE_MARKER = 'ScoreMarker'
+Constants.SHOP_MARKER = 'ShopMarker'
+Constants.REROLL_MARKER = 'RerollMarker'
+Constants.SHOP_DECK = 'ShopDeck'
+Constants.SHOP_CURRENT = 'ShopCurrent'
+Constants.SHOP_DISCARD = 'ShopDiscard'
+Constants.RED = 'Red'
+Constants.PURPLE = 'Purple'
+Constants.GREEN = 'Green'
+Constants.DIE = 'Die'
+Constants.HOURGLASS = 'Hourglass'
+Constants.CHAPTER_BOOK = 'ChapterBook'
+Constants.SCORING_BOOK = 'ScoringBook'
+Constants.CHAPTER_TRACK = 'ChapterTrack'
+Constants.SCORE_TRACK = 'ScoreTrack'
+Constants.SHOP_TRACK = 'ShopTrack'
+Constants.REROLL_TRACK = 'RerollTrack'
+Constants.TRACK_START = 'TrackStart'
+Constants.MARKER = 'Marker'
+Constants.BOSS_DECK = 'BossDeck'
+Constants.BOSS_CURRENT = 'BossCurrent'
+Constants.BOSS_REWARD_DECK = 'BossRewardDeck'
+Constants.BOSS_REWARD_CURRENT = 'BossRewardCurrent'
+Constants.BOSS_CARD = 'BossCard'
+Constants.BOSS_REWARD_CARD = 'BossRewardCard'
+Constants.SHOP_CARD = 'ShopCard'
+Constants.MUSHROOM_TILE = 'MushroomTile'
+Constants.MUSHROOM = 'Mushroom'
+Constants.MUSHROOM_1 = 'Mushroom1'
+Constants.MUSHROOM_5 = 'Mushroom5'
+
+Constants.ADVANCED_CHAPTER_OFFSET = 5
+
+-- true = enraged
+Constants.BOSS_ORIENTATION = {
+    [false] = {0.00, 180.00, 0.00},
+    [true] = {0.00, 0.00, 0.00}
+}
 
 ------------------------------------------------------
 

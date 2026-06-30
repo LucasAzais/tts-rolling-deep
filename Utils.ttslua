@@ -259,6 +259,46 @@ function Utils.castAndTagFilterList(startPosition, direction, tag, distance, typ
     end
 end
 
+function Utils.getObjectsAboveElement(element, tag, height)
+    height = height or 5
+
+    local bounds = element.getBoundsNormalized()
+
+    local hits = Physics.cast({
+        origin = {
+            bounds.center.x,
+            bounds.center.y + bounds.size.y / 2 + height / 2,
+            bounds.center.z
+        },
+        direction = {0, 1, 0},
+        type = 3, -- Box
+        size = {
+            bounds.size.x,
+            height,
+            bounds.size.z
+        },
+        orientation = element.getRotation(),
+        max_distance = 0,
+        debug = false,
+    })
+
+    local objects = {}
+
+    -- Copy the list of hit objects minus the caster element
+    -- And filter by tags
+    for _, hit in ipairs(hits) do
+        local obj = hit.hit_object
+
+        if obj and obj ~= element then
+            if not tag or Utils.contains(obj.getTags(), tag) then
+                table.insert(objects, obj)
+            end
+        end
+    end
+
+    return objects
+end
+
 -- key/value map
 function Utils.getMax(map, order)
     local maxKeys, maxValue = nil, nil

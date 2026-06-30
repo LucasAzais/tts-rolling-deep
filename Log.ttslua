@@ -11,6 +11,7 @@ Log.LEVEL_BY_MODULE = {
     ['EventManager'] = Constants.ERROR,
     ['Global'] = Constants.ERROR,
     ['GlobalUi'] = Constants.ERROR,
+    ['Chapter'] = Constants.DEBUG,
     ['Setup'] = Constants.ERROR,
 }
 
