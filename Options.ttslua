@@ -1,0 +1,30 @@
+local Options = {}
+Options.__index = Options
+
+------------------------------------------------------
+
+function Options.init(savedData)
+    Options.setup_complete = savedData.setup_complete or false
+    Options.manual_setup = savedData.manual_setup or false
+end
+
+function Options.isSetupComplete()
+    return Options.setup_complete
+end
+
+function Options.isManualSetup()
+    return Options.manual_setup
+end
+
+function Options.save()
+    local flatSetup = {}
+
+    flatSetup.setup_complete = Options.setup_complete
+    flatSetup.manual_setup = Options.manual_setup
+
+    return flatSetup
+end
+
+------------------------------------------------------
+
+return Options

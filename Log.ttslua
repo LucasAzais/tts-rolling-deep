@@ -1,0 +1,72 @@
+local Log = {}
+Log.__index = Log
+
+local Constants = require('Constants')
+local Utils = require('Utils')
+
+------------------------------------------------------
+
+Log.logs_by_module = {}
+Log.LEVEL_BY_MODULE = {
+    ['EventManager'] = Constants.ERROR,
+    ['Global'] = Constants.ERROR,
+    ['GlobalUi'] = Constants.ERROR,
+    ['Setup'] = Constants.ERROR,
+}
+
+function Log.init()
+    Log.logs_by_module = {}
+
+    logStyle('debug', { r = 1.0, g = 1.0, b = 1.0 }, '', '')
+    logStyle('info', { r = 0.0, g = 1.0, b = 1.0 }, '', '')
+    logStyle('error', { r = 1.0, g = 0.0, b = 0.0 }, '', '')
+end
+
+function Log.create(module, level)
+    local log = {
+        module = module,
+        level = level
+    }
+    setmetatable(log, Log)
+
+    return log
+end
+
+function Log:error(message, ...)
+    message = message or ''
+
+    if self.level <= Constants.ERROR then
+        log(Utils.format('[%s] ' .. message, self.module, ...), nil, 'error')
+        broadcastToAll(Utils.format(message, ...), Color.Red)
+    end
+end
+
+function Log:info(message, ...)
+    message = message or ''
+    
+    if self.level <= Constants.INFO then
+        log(Utils.format('[%s] ' .. message, self.module, ...), nil, 'info')
+    end
+end
+
+function Log:debug(message, ...)
+    message = message or ''
+
+    if self.level <= Constants.DEBUG then
+        log(Utils.format('[%s] ' .. message, self.module, ...), nil, 'debug')
+    end
+end
+
+function Log.ForModule(module)
+    local log = Log.logs_by_module[module]
+    if not log then
+        log = Log.create(module, Log.LEVEL_BY_MODULE[module] or Constants.ERROR)
+        Log.logs_by_module[module] = log
+    end
+    return log
+end
+
+return {
+    init = Log.init,
+    ForModule = Log.ForModule
+}

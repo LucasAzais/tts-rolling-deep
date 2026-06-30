@@ -1,0 +1,483 @@
+local Utils = {}
+Utils.__index = Utils
+
+------------------------------------------------------
+
+-- Type functions
+function Utils.isType(value, expectedType)
+    if value == nil or expectedType ~= type(value) then
+        return false
+    end
+
+    return true
+end
+
+function Utils.isTypeOrNil(value, expectedType)
+    if value ~= nil and expectedType ~= type(value) then
+        return false
+    end
+
+    return true
+end
+
+function Utils.isBoolean(value) return Utils.isType(value, 'boolean') end
+function Utils.isBooleanOrNil(value) return Utils.isTypeOrNil(value, 'boolean') end
+
+function Utils.isNumber(value) return Utils.isType(value, 'number') end
+function Utils.isNumberOrNil(value) return Utils.isTypeOrNil(value, 'number') end
+
+function Utils.isFunction(value) return Utils.isType(value, 'function') end
+function Utils.isFunctionOrNil(value) return Utils.isTypeOrNil(value, 'function') end
+
+function Utils.isString(value) return Utils.isType(value, 'string') end
+function Utils.isStringOrNil(value) return Utils.isTypeOrNil(value, 'string') end
+
+function Utils.isTable(value) return Utils.isType(value, 'table') end
+function Utils.isTableOrNil(value) return Utils.isTypeOrNil(value, 'table') end
+
+function Utils.isObject(value) return Utils.isType(value, 'userdata') end
+function Utils.isObjectOrNil(value) return Utils.isTypeOrNil(value, 'userdata') end
+
+-- Shuffle function
+function Utils.knuthShuffle(list)
+    local newList = Utils.shallowCopyNumericKeys(list)
+    local index
+    local o = 0
+    for k = 1, #list-1 do
+        index = math.random(k, #list)
+        if index ~= k then
+            newList[k],newList[index] = newList[index],newList[k]
+            o = 1 - o
+        end
+    end
+
+    return newList
+end
+
+-- Look for a single tag
+function Utils.contains(tags, searchedTag)
+    if tags == nil then return false end
+    for _, tag in ipairs(tags) do
+        if tag == searchedTag then
+            return true
+        end
+    end
+
+    return false
+end
+
+-- Look for a single partial tag
+function Utils.containsRegex(tags, searchedTag)
+    if tags == nil then return false end
+
+    for _, tag in ipairs(tags) do
+        if tag:find(searchedTag) ~= nil then
+            return true
+        end
+    end
+
+    return false
+end
+
+function Utils.removeFromList(target, list)
+    if list == nil then return end
+
+    for index, object in ipairs(list) do
+        if object == target then
+            table.remove(list, index)
+            return
+        end
+    end
+end
+
+-- Get the first deck in a given scripting zone
+function Utils.getDeck(GUID)
+    local deckCount = 0
+    local latestDeck = nil
+
+    for _, element in ipairs(getObjectFromGUID(GUID).getObjects()) do
+        if element.type == 'Deck' then
+            deckCount = deckCount + 1
+            latestDeck = element
+        end
+    end
+
+    if deckCount == 1 then 
+        return latestDeck
+    else
+        return nil
+    end
+end
+
+function Utils.findSnapPosition(tagToFind, objectToScan)
+    if tagToFind == nil or objectToScan == nil then
+        return nil
+    end
+
+    for _, snap in ipairs(objectToScan.getSnapPoints()) do
+        if Utils.contains(snap.tags, tagToFind) == true then
+            return snap.position
+        end
+    end
+
+    return nil
+end
+
+function Utils.shallowCopyNumericKeys(tableToCopy)
+    if tableToCopy == nil then return nil end
+    local newTable = {}
+
+    -- Everything is ordered so we keep it that way
+    for index, value in ipairs(tableToCopy) do
+        table.insert(newTable, value)
+    end
+
+    -- Check if the initial table was indeed numeric
+    if #tableToCopy == #newTable then
+        return newTable
+    else
+        return nil
+    end
+end
+
+function Utils.shallowCopy(tableToCopy)
+    if tableToCopy == nil then return nil end
+    local newTable = {}
+
+    -- Everything is ordered so we keep it that way
+    for key, value in pairs(tableToCopy) do
+        newTable[key] = value
+    end
+
+    -- Check if the initial table was indeed numeric
+    return newTable
+end
+
+-- Sorted pairs function
+function Utils.spairs(tableToSort, order)
+    local keys = {}
+    for key in pairs(tableToSort) do
+        keys[#keys+1] = key
+    end
+
+    if order then
+        table.sort(keys, function(a, b) return order(tableToSort, a, b) end)
+    else
+        table.sort(keys)
+    end
+
+    local i = 0
+    return function()
+        i = i + 1
+        if keys[i] then
+            return keys[i], tableToSort[keys[i]]
+        end
+    end
+end
+
+
+function Utils.toboolean(str)
+    if str == 'True' then return true end
+    if str == 'False' then return false end
+    return nil
+end
+
+function Utils.getFirstElementOfTypeAbovePosition(position, type, tag)
+    return Utils.castAndTagFilter(position, Vector(0, 1, 0), tag, 10, type)
+end
+
+function Utils.getFirstElementAbovePosition(position, tag)
+    return Utils.castAndTagFilter(position, Vector(0, 1, 0), tag, 10, nil)
+end
+
+function Utils.getFirstElementAboveObject(object, tag)
+    return Utils.castAndTagFilter(object.getPosition(), Vector(0, 1, 0), tag, 10, nil)
+end
+
+function Utils.getAllElementsOfTypeAbovePosition(position, type, tag)
+    return Utils.castAndTagFilterList(position, Vector(0, 1, 0), tag, 10, type)
+end
+
+function Utils.getAllElementsAbovePosition(position, tag)
+    return Utils.castAndTagFilterList(position, Vector(0, 1, 0), tag, 10, nil)
+end
+
+function Utils.getAllElementsAboveObject(object, tag)
+    return Utils.castAndTagFilterList(object.getPosition(), Vector(0, 1, 0), tag, 10, nil)
+end
+
+function Utils.castAndTagFilter(startPosition, direction, tag, distance, type)
+    if not startPosition then error("Missing startPosition parameter for castAndTagFilter.") end
+
+    local results = Physics.cast({
+        origin       = startPosition,
+        direction    = (direction and Vector(direction):normalize()) or Vector(0, 1, 0),
+        max_distance = distance or 100,
+        type         = 1,
+        debug        = false,
+    })
+
+    if results and #results > 0 then
+        for index, result in ipairs(results) do
+            if tag == nil or result.hit_object.hasTag(tag) then
+                if type == nil or type == result.hit_object.type then
+                    return result.hit_object
+                end
+            end
+        end
+        
+        return nil
+    else 
+        return nil
+    end
+end
+
+function Utils.castAndTagFilterList(startPosition, direction, tag, distance, type)
+    if not startPosition then error("Missing startPosition parameter for castAndTagFilterList.") end
+
+    local results = Physics.cast({
+        origin       = startPosition,
+        direction    = (direction and Vector(direction):normalize()) or Vector(0, 1, 0),
+        max_distance = distance or 100,
+        type         = 1,
+        debug        = false,
+    })
+
+    if results and #results > 0 then
+        local list = {}
+        for _, result in ipairs(results) do
+            if tag == nil or result.hit_object.hasTag(tag) then
+                if type == nil or type == result.hit_object.type then
+                    table.insert(list, result.hit_object)
+                end
+            end
+        end
+        
+        return list
+    else 
+        return nil
+    end
+end
+
+-- key/value map
+function Utils.getMax(map, order)
+    local maxKeys, maxValue = nil, nil
+    for key, value in pairs(map) do
+        if (maxKeys == nil and maxValue == nil) or (order and order(maxValue, value) > 0) or value > maxValue then
+            maxKeys = {key}
+            maxValue = value
+        elseif (order and order(maxValue, value) == 0) or value == maxValue then
+            table.insert(maxKeys, key)
+        end
+    end
+
+    return maxKeys, maxValue
+end
+
+function Utils.format(message, ...)
+    message = message or ''
+
+    local args = table.pack(...)
+    for i = 1, args.n do
+        if args[i] == nil then
+            args[i] = '<nil>'
+        elseif type(args[i]) == 'table' then
+            -- TODO: Serialise table?
+            args[i] = tostring(args[i])
+        end
+    end
+
+    local result = ''
+    if not pcall(function() result = string.format(message, table.unpack(args)) end) then
+        result = 'Formatting Error: message = "' .. message .. '"'
+        for i = 1, args.n do
+            result = result .. ', arg'.. i .. '=' .. tostring(args[i])
+        end
+    end
+
+    return result
+end
+
+function Utils.clamp(value, min, max)
+    if min ~= nil and value < min then
+        return min
+    elseif max ~= nil and value > max then
+        return max
+    else
+        return value
+    end
+end
+
+-- Padding ratio is how much of the zone should be used (leave space from the borders)
+function Utils.getZoneRandomPosition(zoneGUID, paddingRatio, fixedY)
+    local zone = getObjectFromGUID(zoneGUID)
+    if not zone then return nil end
+
+    local boundsSize = zone.getBoundsNormalized().size
+
+    local randomX = zone.getPosition().x + (math.random() - 0.5) * boundsSize.x * (paddingRatio or 1)
+    local randomY = zone.getPosition().y + (math.random() - 0.5) * boundsSize.y * (paddingRatio or 1)
+    local randomZ = zone.getPosition().z + (math.random() - 0.5) * boundsSize.z * (paddingRatio or 1)
+    
+    local position = {}
+    position[1] = randomX
+    position[2] = fixedY or randomY
+    position[3] = randomZ
+
+    return position
+end
+
+-- Returns a random position around a given position, with a max distance (radius)
+function Utils.getRandomPositionAroundPosition(position, radius, fixedY)
+    if not position or not radius then return nil end
+
+    local angle = math.random() * 2 * math.pi
+    local distance = math.random() * radius
+
+    local randomX = position.x + math.cos(angle) * distance
+    local randomZ = position.z + math.sin(angle) * distance
+    local randomY = fixedY or (position.y + math.random() * radius) or 1
+
+    return { randomX, randomY, randomZ }
+end
+
+function Utils.equalsAbout(firstNumber, secondNumber, precision)
+    if not precision then precision = 0.01 end
+
+    return math.abs(firstNumber - secondNumber) < precision
+end
+
+function Utils.tableToString(tableToSerialize)
+    local function serialize(currentTable, indent)
+        indent = indent or ""
+
+        if currentTable == nil then return 'nil' end
+        if type(currentTable) ~= 'table' then 
+            if type(currentTable) == 'userdata' then
+                return tostring('<' .. currentTable.type .. '>' .. ' [' .. currentTable.getGUID() .. '] ' .. currentTable.getName())
+            else
+                return tostring(currentTable)
+            end
+        end
+
+        local nextIndent = indent .. "  "
+        local parts = {}
+        local hasNumeric = false
+        local hasString = false
+
+        -- Detect if numeric keys exist
+        for k, _ in pairs(currentTable) do
+        if type(k) == "number" then
+            hasNumeric = true
+        else
+            hasString = true
+        end
+        end
+
+        -- Decide how to handle numeric keys
+        local numericKeys = {}
+        if hasNumeric and not hasString then
+            -- Pure array
+            for i = 1, #currentTable do
+                table.insert(parts, nextIndent .. serialize(currentTable[i], nextIndent))
+            end
+        else
+            -- Mixed or string-keyed currentTable
+            for k, v in pairs(currentTable) do
+                local key
+                -- Check if the key is a valid identifier
+                if type(k) == "string" and k:match("^[_%a][_%w]*$") then
+                    key = k
+                else
+                    key = "[" .. serialize(k, "") .. "]"
+                end
+                table.insert(parts, nextIndent .. key .. " = " .. serialize(v, nextIndent))
+            end
+        end
+
+        return "{\n" .. table.concat(parts, ",\n") .. "\n" .. indent .. "}"
+    end
+
+    return serialize(tableToSerialize, "")
+end
+
+-- Useful to recreate tracks made out of snap points
+-- Takes a LIST (ie numeric indexes) and the starting point of the track
+-- We give first and second to handle looping tracks
+-- This is NOT a sort in place, it returns a new ordered list
+function Utils.sortByProximity(list, firstElement, secondElement)
+    local orderedList = {}
+    local remainingElements = {table.unpack(list)} -- Shortcut for a shallow copy
+
+    -- Use the firstElement
+    local currentElement = firstElement
+    table.insert(orderedList, currentElement)
+    for index, elem in ipairs(remainingElements) do
+        if elem == currentElement then
+            table.remove(remainingElements, index)
+            break
+        end
+    end
+
+    if secondElement ~= nil then
+        currentElement = secondElement
+        table.insert(orderedList, currentElement)
+        for index, elem in ipairs(remainingElements) do
+            if elem == currentElement then
+                table.remove(remainingElements, index)
+                break
+            end
+        end
+    end
+
+    while #remainingElements > 0 do
+        -- Find the nearest snap point
+        local nearestIndex, nearestDistance = nil, nil
+
+        for index, elem in ipairs(remainingElements) do
+            local distance = (Vector(elem.position) - Vector(currentElement.position)):magnitude()
+
+            if nearestDistance == nil or distance < nearestDistance then
+                nearestIndex = index
+                nearestDistance = distance
+            end
+        end
+
+        -- Remove the element from the table and move to the next one
+        currentElement = table.remove(remainingElements, nearestIndex)
+        table.insert(orderedList, currentElement)
+    end
+
+    return orderedList
+end
+
+function Utils.hexToColor(hex)
+    hex = hex:gsub("#","")
+    local r, g, b, a
+
+    if #hex == 6 then
+        r, g, b = hex:match("^(..)(..)(..)$")
+        a = "FF"
+    elseif #hex == 8 then
+        r, g, b, a = hex:match("^(..)(..)(..)(..)$")
+    else
+        error("Invalid hex color: " .. tostring(hex))
+    end
+
+    return {
+        r = tonumber(r, 16) / 255,
+        g = tonumber(g, 16) / 255,
+        b = tonumber(b, 16) / 255,
+        a = tonumber(a, 16) / 255
+    }
+end
+
+------------------------------------------------------
+-- Mod specific
+------------------------------------------------------
+
+
+
+------------------------------------------------------
+
+return Utils

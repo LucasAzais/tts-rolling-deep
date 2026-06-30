@@ -1,0 +1,19 @@
+local Setup = {}
+Setup.__index = Setup
+
+local Constants = require('Constants')
+local Options = require('Options')
+local Log = require('Log').ForModule('Setup')
+local Utils = require('Utils')
+
+------------------------------------------------------
+
+function Setup.setup()
+
+end
+
+------------------------------------------------------
+
+return {
+    setup = Setup.setup,
+}

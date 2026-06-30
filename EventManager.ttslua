@@ -1,0 +1,270 @@
+local EventManager = {}
+
+------------------------------------------------------
+
+EventManager.handlers = {}
+EventManager.global_handlers = {}
+
+EventManager.object_handlers = {}
+
+EventManager.SCRIPTED_OBJECT = 'ScriptedObject'
+
+function EventManager.init(savedData)
+    -- Ready this for a wipe
+    EventManager.object_handlers = savedData.objectsWithHandlers or {}
+    EventManager.wipeAllHandlers()
+end
+
+function EventManager.addHandler(event, handler, object)
+    assert(event ~= nil and 'string' == type(event))
+    assert(handler ~= nil and 'function' == type(handler))
+
+    -- Global event handler
+    if object == nil then
+        -- If there's already a table for this event, just add the handler
+        local handlers = EventManager.handlers[event]
+        if handlers then
+            table.insert(handlers, handler)
+            return
+        end
+
+        -- Otherwise initialise the table and global event for this
+        EventManager.global_handlers[event] = _G[event]
+
+        _G[event] = function(...)
+            local globalHandler = EventManager.global_handlers[event]
+            local returnValue
+            if globalHandler then
+                returnValue = globalHandler(...)
+            end
+
+            local args = table.pack(...)
+            local n = #args
+            table.insert(args, returnValue)
+            for _, handler in ipairs(EventManager.handlers[event]) do
+                args[n + 1] = returnValue
+                returnValue = handler(table.unpack(args))
+            end
+
+            return returnValue
+        end
+
+        EventManager.handlers[event] = { handler }
+    else
+        -- Object-specific event handler
+        local guid = object.getGUID()
+        if not EventManager.object_handlers[guid] then
+            EventManager.object_handlers[guid] = {}
+        end
+
+        local handlers = EventManager.object_handlers[guid][event]
+        if not handlers then
+            EventManager.object_handlers[guid][event] = {}
+            handlers = EventManager.object_handlers[guid][event]
+        end
+
+        -- Check the handler isn't already registered
+        for _, regHandler in ipairs(handlers) do
+            if regHandler == handler then
+                return
+            end
+        end
+        
+        table.insert(handlers, handler)
+        EventManager.updateObjectScript(object, event)
+    end
+end
+
+-- Update the object script according to the registered handlers
+-- If even isn't specified, update all events
+function EventManager.updateObjectScript(object, event)
+    if not object then
+        return
+    end
+    
+    local handlers = EventManager.object_handlers[object.getGUID()]
+
+    -- Check if we need to wipe the entire EVENT section of the script
+    local script = object.getLuaScript()
+    if handlers == nil then
+        -- Wipe everything if we get to that point from EVENT_HANDLERS_START to EVENT_onEventTrigger_END
+        local cleaned = script:gsub("%s*%-%-%s%[%[EVENT_.-_START%]%].+%-%-%s%[%[EVENT_.-_END%]%]%s*", "")
+        object.setLuaScript(cleaned)
+        object.removeTag(EventManager.SCRIPTED_OBJECT)
+        return
+    end
+
+    -- Setup relay that calls back to Global
+    local globalRelay = [===[
+-- [[EVENT_HANDLERS_START]]
+function globalRelay(event, params)
+    if Global and Global.call then
+        Global.call("handleEvent", {path = "EventManager.handleObjectEvent", event = event, params = params})
+    end
+end
+-- [[EVENT_HANDLERS_END]]]===]
+
+    local pattern  = "%-%-%s%[%[EVENT_HANDLERS_START%]%].-%-%-%s%[%[EVENT_HANDLERS_END%]%]"
+    local oldScript = script
+
+    -- Check if we need to add the relay or simply update it
+    if script:find(pattern) then
+        script = script:gsub(pattern, globalRelay)
+    else
+        script = script:gsub("%s*$", "")
+        if script ~= '' then
+            script = script .. "\n\n" .. globalRelay
+        else
+            script = globalRelay
+        end
+    end
+
+    -- If there's a difference, update the script
+    if oldScript ~= script then
+        object.setLuaScript(script)
+    end
+    object.addTag(EventManager.SCRIPTED_OBJECT)
+    script = object.getLuaScript()
+
+    -- If event is defined, try to find the handler for that event or insert it.
+    -- Each event has ONE handler
+    -- Each handler calls globalRelay which will handle calling all registered handlers afterwards
+    -- If even isn't defined, update all events
+    for currentEvent, _ in pairs(handlers or {}) do
+        if event == nil or currentEvent == event then
+            local pattern  = "%-%-%s%[%[EVENT_" .. currentEvent .. "_START%]%].-%-%-%s%[%[EVENT_" .. currentEvent .. "_END%]%]"
+
+            -- Check if we need to wipe the event
+            if handlers == nil or handlers[currentEvent] == nil then
+                local cleaned = script:gsub("%s*" .. pattern .. "%s*", "")
+                object.setLuaScript(cleaned)
+                object.removeTag(EventManager.SCRIPTED_OBJECT)
+                script = object.getLuaScript()
+            else
+                -- Otherwise find it and insert/update it
+                local eventFunction = string.format([===[
+-- [[EVENT_%s_START]]
+function %s(...)
+    globalRelay('%s', {self.getGUID(), table.pack(...)})
+end
+-- [[EVENT_%s_END]]]===], currentEvent, currentEvent, currentEvent, currentEvent)
+
+                local oldScript = script
+
+                -- Check if we need to add the relay or simply update it
+                if script:find(pattern) then
+                    script = script:gsub(pattern, eventFunction)
+                else
+                    -- script = script:gsub("^%s*", ""):gsub("%s*$", "")
+                    script = script:gsub("%s*$", "")
+                    if script ~= '' then
+                        script = script .. "\n\n" .. eventFunction
+                    else
+                        script = eventFunction
+                    end
+                end
+                
+                if oldScript ~= script then
+                    object.setLuaScript(script)
+                end
+                object.addTag(EventManager.SCRIPTED_OBJECT)
+                script = object.getLuaScript()
+            end
+        end
+    end
+end
+
+function EventManager.handleObjectEvent(data)
+    if not data or not data.params then return end
+
+    -- Check the data
+    local event = data.event
+    local guid = data.params[1]
+    local object = getObjectFromGUID(guid)
+    if not object then return end
+
+    local entry = EventManager.object_handlers[guid]
+    if not entry or not entry[event] then return end
+
+    for _, handler in ipairs(entry[event]) do
+        if handler then
+            handler(object, table.unpack(data.params, 2))
+        end
+    end
+end
+
+-- If we ever need to wipe one specific handler, we'll have to switch to passing
+-- function names (handlerName) instead of actual function references (handler)
+function EventManager.wipeHandlers(event, object)
+    if object == nil then
+        EventManager.global_handlers[event] = nil
+        EventManager.handlers[event] = nil
+
+        _G[event] = nil
+    else
+        local guid = object.getGUID()
+        if EventManager.object_handlers[guid] then
+            EventManager.object_handlers[guid][event] = nil
+            EventManager.updateObjectScript(object, event)
+        end
+    end
+end
+
+function EventManager.wipeAllHandlers()
+    for event, _ in pairs(EventManager.global_handlers) do
+        EventManager.global_handlers[event] = nil
+        _G[event] = nil
+    end
+
+    for event, _ in pairs(EventManager.handlers) do
+        EventManager.handlers[event] = nil
+        _G[event] = nil
+    end
+
+    for _, object in ipairs(getObjectsWithTag(EventManager.SCRIPTED_OBJECT)) do
+        if object then
+            EventManager.object_handlers[object.getGUID()] = nil
+            EventManager.updateObjectScript(object)
+        end
+    end
+end
+
+function EventManager.fireEvent(event, ...)
+    assert(event ~= nil and 'string' == type(event))
+
+    local globalHandler = EventManager.global_handlers[event]
+    if globalHandler then
+        globalHandler(...)
+    end
+
+    for _, handler in ipairs(EventManager.handlers[event] or {}) do
+        handler(...)
+    end
+end
+
+function EventManager.fireObjectEvent(event, object, ...)
+    assert(event ~= nil and 'string' == type(event))
+    assert(object ~= nil)
+
+    if EventManager.object_handlers[object.getGUID()] and EventManager.object_handlers[object.getGUID()][event] then
+        local handlers = EventManager.object_handlers[object.getGUID()][event]
+        for _, handler in ipairs(handlers) do
+            handler(...)
+        end
+    end
+end
+
+function EventManager.save()
+    local flatData = {}
+
+    flatData.objectsWithHandlers = {}
+    for guid, events in pairs(EventManager.object_handlers) do
+        table.insert(flatData.objectsWithHandlers, guid)
+    end
+
+    return flatData
+end
+
+------------------------------------------------------
+
+return EventManager

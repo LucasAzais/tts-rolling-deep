@@ -1,0 +1,1179 @@
+local Ui = {}
+Ui.__index = Ui
+
+------------------------------------------------------
+
+Ui.SCALE = '0.1 0.1'
+Ui.TRANSPARENT_INPUT_COLORS = '#FFFFFF00|#32323222|#32323222|rgba(0.78,0.78,0.78,0.5)'
+Ui.DEBUG_TRANSPARENT_INPUT_COLORS = '#FFFFFF00|#32323288|#32323288|rgba(0.78,0.78,0.78,0.5)'
+Ui.VISIBLE_COLORS = '#FFFFFFFF|#FFFFFFFF|#FFFFFFFF|#FFFFFFFF'
+Ui.INVISIBLE_COLORS = '#00000000|#00000088|#00000088|#00000000'
+Ui.ANIMATION_LOCK_DELAY = 0.5 -- Time (seconds) to lock buttons during animations
+
+------------------------------------------------------
+
+function Ui.init()
+    Ui.root = {}
+    Ui.root.attributes = {
+        id = 'root'
+    }
+    Ui.root.children = Global.UI.getXmlTable()
+    Ui.root.object = Global
+    Ui.root.createElement = Ui.createElementOnGlobal
+    Ui.rootPerObject = {}
+    setmetatable(Ui.root, Ui)
+end
+
+-- Create a new root to keep everything on global but based on a specific object
+function Ui.createRootOnObject(id, object, z)
+    assert(id ~= nil and 'string' == type(id))
+    assert(object ~= nil and 'userdata' == type(object))
+    assert(z ~= nil and 'number' == type(z))
+
+    local objectRoot = Ui.rootPerObject[object]
+
+    if objectRoot == nil then
+        objectRoot = {
+            object = object,
+            z = -10 * z,
+            rotation = '0 0 180', -- It's putting everything upside down otherwise
+            scale = Ui.SCALE,
+            children = object.UI.getXmlTable(),
+            attributes = {
+                id = id
+            },
+            createElement = Ui.createElementOnObject
+        }
+
+        setmetatable(objectRoot, Ui)
+        Ui.rootPerObject[object] = objectRoot
+    end
+
+    return objectRoot
+end
+
+function Ui:createElementOnGlobal(tag, params)
+    assert(tag ~= nil and 'string' == type(tag))
+    assert(params.id ~= nil and 'string' == type(params.id))
+    assert(params.x == nil or 'number' == type(params.x))
+    assert(params.y == nil or 'number' == type(params.y))
+    assert(params.width == nil or 'number' == type(params.width) or 'string' == type(params.width))
+    assert(params.height == nil or 'number' == type(params.height) or 'string' == type(params.height))
+    assert(params.active == nil or 'boolean' == type(params.active))
+    assert(params.color == nil or 'string' == type(params.color))
+    assert(params.visibility == nil or 'string' == type(params.visibility))
+
+    local element = {
+        tag = tag,
+        object = self.object,
+        createElement = self.createElement,
+        attributes = {
+            id = self.attributes.id .. '_' .. params.id,
+            offsetXY = (params.x or 0) .. ' ' .. (params.y or 0),
+            width = params.width or '100%',
+            height = params.height or '100%',
+            -- scale = Ui.SCALE,
+            rectAlignment = params.rectAlignment or 'UpperLeft',
+            active = params.active == nil or params.active,
+            showAnimation = 'FadeIn',
+            hideAnimation = 'FadeOut',
+            visibility = params.visibility or '',
+        },
+        children = {}
+    }
+
+    -- Other parameters with no defined default
+    if params.width ~= nil then
+        element.attributes.preferredWidth = params.width
+    end
+
+    if params.height ~= nil then
+        element.attributes.preferredHeight = params.height
+    end
+
+    if params.color ~= nil then
+        element.attributes.color = params.color
+    end
+
+    if params.textColor ~= nil then
+        element.attributes.textColor = params.textColor
+    end
+
+    table.insert(self.children, element)
+
+    return element
+end
+
+function Ui:createElementOnObject(tag, params)
+    assert(tag ~= nil and 'string' == type(tag))
+    assert(params.id ~= nil and 'string' == type(params.id))
+    assert(params.x == nil or 'number' == type(params.x))
+    assert(params.y == nil or 'number' == type(params.y))
+    assert(params.width == nil or 'number' == type(params.width) or 'string' == type(params.width))
+    assert(params.height == nil or 'number' == type(params.height) or 'string' == type(params.height))
+    assert(params.active == nil or 'boolean' == type(params.active))
+    assert(params.scale == nil or 'string' == type(params.scale))
+    assert(params.color == nil or 'string' == type(params.color))
+
+    local element = {
+        tag = tag,
+        object = self.object,
+        createElement = self.createElement,
+        attributes = {
+            id = self.attributes.id .. '_' .. params.id,
+            position = (params.x or 0) .. ' ' .. (params.y or 0) .. ' ' .. (params.z or self.z),
+            rotation = self.rotation,
+            -- Use the parent's scale for the first root elements, otherwise it's 1-1-1 scale unless specified
+            scale = params.scale or self.scale or '1 1 1', 
+            width = params.width or '100%',
+            height = params.height or '100%',
+            rectAlignment = params.rectAlignment or 'MiddleCenter',
+            active = params.active == nil or params.active,
+            showAnimation = 'FadeIn',
+            hideAnimation = 'FadeOut',
+        },
+        children = {}
+    }
+
+    -- Other parameters with no defined default
+    if params.width ~= nil then
+        element.attributes.preferredWidth = params.width
+    end
+
+    if params.height ~= nil then
+        element.attributes.preferredHeight = params.height
+    end
+
+    if params.color ~= nil then
+        element.attributes.color = params.color
+    end
+
+    table.insert(self.children, element)
+
+    return element
+end
+
+function Ui:panel(params)
+    assert(params.padding == nil or 'string' == type(params.padding))
+
+    local layout = self:createElement('Panel', params)
+    layout.z = self.z
+    layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+    layout.attributes.childForceExpandHeight = 'false'
+
+    if params.padding ~= nil then
+        layout.attributes.padding = params.padding
+    end
+
+    setmetatable(layout, Ui)
+    
+    -- We leave this, otherwise it will show the button icon on all image elements
+    if params.onClick then
+        layout:registerOnClick(params.onClick)
+    end
+    if params.onMouseEnter then
+        layout:registerOnMouseEnter(params.onMouseEnter)
+    end
+    if params.onMouseExit then
+        layout:registerOnMouseExit(params.onMouseExit)
+    end
+
+    return layout
+end
+
+function Ui:verticalLayout(params)
+    assert(params.spacing == nil or 'number' == type(params.spacing))
+    assert(params.padding == nil or 'string' == type(params.padding))
+
+    local layout = self:createElement('VerticalLayout', params)
+    layout.z = self.z
+    layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+    -- layout.attributes.childForceExpandWidth = false
+    -- layout.attributes.childForceExpandHeight = false
+
+    if params.spacing ~= nil then
+        layout.attributes.spacing = params.spacing
+    end
+
+    if params.padding ~= nil then
+        layout.attributes.padding = params.padding
+    end
+
+    setmetatable(layout, Ui)
+
+    return layout
+end
+
+function Ui:verticalScrollView(params)
+    assert(params.scrollbarBackgroundColor == nil or 'string' == type(params.scrollbarBackgroundColor))
+    assert(params.scrollbarColors == nil or 'string' == type(params.scrollbarColors))
+
+    local layout = self:createElement('VerticalScrollView', params)
+    layout.z = self.z
+    layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+    -- layout.attributes.childForceExpandWidth = false
+    -- layout.attributes.childForceExpandHeight = false
+
+    if params.scrollbarBackgroundColor ~= nil then
+        layout.attributes.scrollbarBackgroundColor = params.scrollbarBackgroundColor
+    end
+
+    if params.scrollbarColors ~= nil then
+        layout.attributes.scrollbarColors = params.scrollbarColors
+    end
+
+    setmetatable(layout, Ui)
+
+    return layout
+end
+
+function Ui:horizontalLayout(params)
+    assert(params.spacing == nil or 'number' == type(params.spacing))
+    assert(params.padding == nil or 'string' == type(params.padding))
+
+    local layout = self:createElement('HorizontalLayout', params)
+    layout.z = self.z
+    layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+    -- layout.attributes.childForceExpandWidth = false
+    -- layout.attributes.childForceExpandHeight = false
+
+    if params.spacing ~= nil then
+        layout.attributes.spacing = params.spacing
+    end
+
+    if params.padding ~= nil then
+        layout.attributes.padding = params.padding
+    end
+
+    setmetatable(layout, Ui)
+
+    return layout
+end
+
+function Ui:gridLayout(params)
+    assert(params.spacing == nil or 'string' == type(params.spacing))
+    assert(params.cellSize == nil or 'string' == type(params.cellSize))
+    assert(params.constraint == nil or 'string' == type(params.constraint))
+    assert(params.constraintCount == nil or 'number' == type(params.constraintCount))
+
+    local layout = self:createElement('GridLayout', params)
+    layout.z = self.z
+    layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+
+    if params.spacing ~= nil then
+        layout.attributes.spacing = params.spacing
+    end
+
+    if params.cellSize ~= nil then
+        layout.attributes.cellSize = params.cellSize
+    end
+    
+    if params.constraint ~= nil then
+        layout.attributes.constraint = params.constraint
+    end
+
+    if params.constraintCount ~= nil then
+        layout.attributes.constraintCount = params.constraintCount
+    end
+
+    setmetatable(layout, Ui)
+
+    return layout
+end
+
+function Ui:tableLayout(params)
+    assert(params.cellSpacing == nil or 'number' == type(params.cellSpacing))
+    assert(params.cellPadding == nil or 'string' == type(params.cellPadding))
+
+    local layout = self:createElement('TableLayout', params)
+    layout.z = self.z
+    layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+
+    if params.cellSpacing ~= nil then
+        layout.attributes.cellSpacing = params.cellSpacing
+    end
+    
+    if params.cellPadding ~= nil then
+        layout.attributes.cellPadding = params.cellPadding
+    end
+
+    setmetatable(layout, Ui)
+
+    return layout
+end
+
+function Ui:row(params)
+    assert(params.preferredHeight == nil or 'number' == type(params.preferredHeight))
+    assert(params.dontUseTableRowBackground == nil or 'string' == type(params.dontUseTableRowBackground))
+
+    local layout = self:createElement('Row', params)
+    layout.z = self.z
+    -- layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+
+    if params.preferredHeight ~= nil then
+        layout.attributes.preferredHeight = params.preferredHeight
+    end
+    
+    if params.dontUseTableRowBackground ~= nil then
+        layout.attributes.dontUseTableRowBackground = params.dontUseTableRowBackground
+    end
+
+    setmetatable(layout, Ui)
+
+    return layout
+end
+
+function Ui:cell(params)
+    assert(params.columnSpan == nil or 'number' == type(params.columnSpan))
+    assert(params.padding == nil or 'string' == type(params.padding))
+    assert(params.cellBackgroundColor == nil or 'string' == type(params.cellBackgroundColor))
+
+    local layout = self:createElement('Cell', params)
+    layout.z = self.z
+    -- layout.rotation = '0 0 0'
+    -- layout.scale = self.scale
+
+    if params.columnSpan ~= nil then
+        layout.attributes.columnSpan = params.columnSpan
+    end
+    
+    if params.padding ~= nil then
+        layout.attributes.padding = params.padding
+    end
+
+    if params.cellBackgroundColor ~= nil then
+        layout.attributes.cellBackgroundColor = params.cellBackgroundColor
+    end
+
+    setmetatable(layout, Ui)
+
+    return layout
+end
+
+function Ui:toggleGroup(params)
+    local toggleGroup = self:createElement('ToggleGroup', params)
+    toggleGroup.z = self.z
+    -- toggleGroup.rotation = '0 0 0'
+    -- toggleGroup.scale = self.scale
+
+    setmetatable(toggleGroup, Ui)
+
+    return toggleGroup
+end
+
+function Ui:toggle(params)
+    assert(params.isOn == nil or 'boolean' == type(params.isOn))
+    assert(params.text == nil or 'string' == type(params.text))
+    assert(params.font == nil or 'string' == type(params.font))
+    assert(params.fontSize == nil or 'number' == type(params.fontSize))
+    assert(params.fontStyle == nil or 'number' == type(params.fontStyle))
+    assert(params.fontBase == nil or 'number' == type(params.fontBase))
+    assert(params.toggleHeight == nil or 'number' == type(params.toggleHeight))
+    assert(params.toggleWidth == nil or 'number' == type(params.toggleWidth))
+
+    local toggle = self:createElement('Toggle', params)
+    toggle.z = self.z
+    -- toggle.rotation = '0 0 0'
+    -- toggle.scale = self.scale
+
+    if params.isOn ~= nil then
+        toggle.attributes.isOn = params.isOn
+    end
+
+    if params.text ~= nil then
+        toggle.attributes.text = params.text
+    end
+
+    if params.font ~= nil then
+        toggle.attributes.font = params.font
+    end
+
+    if params.fontSize ~= nil then
+        toggle.attributes.fontSize = params.fontSize
+    end
+
+    if params.fontStyle ~= nil then
+        toggle.attributes.fontStyle = params.fontStyle
+    end
+    
+    -- This combines font and style 
+    -- base = 'Cardo/Cardo-' and style = 'Bold' -> font = 'Cardo/Cardo-Bold'
+    if params.fontBase ~= nil then
+        toggle.attributes.fontStyle = 'Normal'
+        toggle.attributes.font = params.fontBase .. (params.fontStyle or 'Normal')
+    end
+
+    if params.toggleHeight ~= nil then
+        toggle.attributes.toggleHeight = params.toggleHeight
+    end
+
+    if params.toggleWidth ~= nil then
+        toggle.attributes.toggleWidth = params.toggleWidth
+    end
+
+    setmetatable(toggle, Ui)
+    toggle:registerOnValueChanged(params.onValueChanged)
+
+    return toggle
+end
+
+function Ui:toggleButton(params)
+    assert(params.isOn == nil or 'boolean' == type(params.isOn))
+    assert(params.text == nil or 'string' == type(params.text))
+    assert(params.font == nil or 'string' == type(params.font))
+    assert(params.fontSize == nil or 'number' == type(params.fontSize))
+    assert(params.fontStyle == nil or 'string' == type(params.fontStyle))
+    assert(params.fontBase == nil or 'string' == type(params.fontBase))
+    assert(params.colors == nil or 'string' == type(params.colors))
+    assert(params.selectedBackgroundColor == nil or 'string' == type(params.selectedBackgroundColor))
+    assert(params.deselectedBackgroundColor == nil or 'string' == type(params.deselectedBackgroundColor))
+
+    local toggle = self:createElement('ToggleButton', params)
+    toggle.z = self.z
+    -- toggle.rotation = '0 0 0'
+    -- toggle.scale = self.scale
+    
+    if params.isOn ~= nil then
+        toggle.attributes.isOn = params.isOn
+    end
+
+    if params.text ~= nil then
+        toggle.attributes.text = params.text
+    end
+
+    if params.textColor ~= nil then
+        toggle.attributes.textColor = params.textColor
+    end
+
+    if params.colors ~= nil then
+        toggle.attributes.colors = params.colors
+    end
+
+    if params.selectedBackgroundColor ~= nil then
+        toggle.attributes.selectedBackgroundColor = params.selectedBackgroundColor
+    end
+
+    if params.deselectedBackgroundColor ~= nil then
+        toggle.attributes.deselectedBackgroundColor = params.deselectedBackgroundColor
+    end
+
+    if params.font ~= nil then
+        toggle.attributes.font = params.font
+    end
+
+    if params.fontSize ~= nil then
+        toggle.attributes.fontSize = params.fontSize
+    end
+
+    if params.fontStyle ~= nil then
+        toggle.attributes.fontStyle = params.fontStyle
+    end
+
+    -- This combines font and style 
+    -- base = 'Cardo/Cardo-' and style = 'Bold' -> font = 'Cardo/Cardo-Bold'
+    if params.fontBase ~= nil then
+        toggle.attributes.fontStyle = 'Normal'
+        toggle.attributes.font = params.fontBase .. (params.fontStyle or 'Normal')
+    end
+
+    setmetatable(toggle, Ui)
+    toggle:registerOnValueChanged(params.onValueChanged)
+
+    return toggle
+end
+
+function Ui:dropdown(params)
+    local dropdown = self:createElement('Dropdown', params)
+    dropdown.z = self.z
+    -- dropdown.rotation = '0 0 0'
+    -- dropdown.scale = self.scale
+
+    setmetatable(dropdown, Ui)
+
+    return dropdown
+end
+
+function Ui:option(params)
+    assert(params.value ~= nil and 'string' == type(params.value))
+
+    local option = self:createElement('Option', params)
+    option.z = self.z
+    -- option.rotation = '0 0 0'
+    -- option.scale = self.scale
+    option.attributes.value = params.value
+
+    setmetatable(option, Ui)
+
+    return option
+end
+
+function Ui:button(params)
+    assert(params.text == nil or 'string' == type(params.text))
+    assert(params.color == nil or 'string' == type(params.color))
+    assert(params.colors == nil or 'string' == type(params.colors))
+    assert(params.textColor == nil or 'string' == type(params.textColor))
+    assert(params.font == nil or 'string' == type(params.font))
+    assert(params.fontSize == nil or 'number' == type(params.fontSize))
+    assert(params.fontStyle == nil or 'string' == type(params.fontStyle))
+    assert(params.fontBase == nil or 'string' == type(params.fontBase))
+
+    local button = self:createElement('Button', params)
+    button.z = self.z
+    -- button.rotation = '0 0 0'
+    -- button.scale = self.scale
+
+    button.attributes.text = params.text or nil
+    button.attributes.font = params.font or nil
+    button.attributes.fontSize = params.fontSize or 14
+    button.attributes.fontStyle = params.fontStyle or 'Normal'
+    button.attributes.color = params.color or '#FFFFFF'
+    button.attributes.colors = params.colors or '#FFFFFF|#FFFFFF|#C8C8C8|rgba(0.78,0.78,0.78,0.5)'
+    button.attributes.textColor = params.textColor or '#323232'
+    -- button.attributes.image = params.image or nil
+    -- button.attributes.icon = params.icon or nil
+
+    -- This combines font and style 
+    -- base = 'Cardo/Cardo-' and style = 'Bold' -> font = 'Cardo/Cardo-Bold'
+    if params.fontBase ~= nil then
+        button.attributes.fontStyle = 'Normal'
+        button.attributes.font = params.fontBase .. (params.fontStyle or 'Normal')
+    end
+
+    setmetatable(button, Ui)
+    button:registerOnClick(params.onClick)
+    button:registerOnMouseEnter(params.onMouseEnter)
+    button:registerOnMouseExit(params.onMouseExit)
+
+    return button
+end
+
+-- This isn't exactly a normal element
+function Ui:checkboxGroup(params)
+    assert(params.id ~= nil and 'string' == type(params.id))
+    assert(params.onClick ~= nil and 'function' == type(params.onClick))
+
+    local group = {
+        id = params.id,
+        z = self.z,
+        scale = self.scale,
+        rotation = self.rotation,
+        createElement = self.createElement,
+        parent = self, -- Use this to jump a layer (on child, use self.parent)
+        checkboxes = {},
+        checkedImage = params.checkedImage or 'checked',
+        checkedColors = params.checkedColors or Ui.VISIBLE_COLORS,
+        uncheckedImage = params.uncheckedImage,
+        uncheckedColors = params.uncheckedColors or Ui.INVISIBLE_COLORS,
+        onClick = params.onClick,
+    }
+    setmetatable(group, Ui)
+
+    return group
+end
+
+-- grouped == true if part of a checkboxGroup
+function Ui:checkbox(params, grouped)
+    local checkbox = (grouped and self.parent or self):createElement('Button', params)
+    checkbox.z = self.z
+
+    checkbox.checkedImage = params.checkedImage or self.checkedImage or 'checked'
+    checkbox.checkedColors = params.checkedColors or self.checkedColors or Ui.VISIBLE_COLORS
+    
+    -- The or 'checked' here somehow shows the checked image when hovering, it looks cool
+    checkbox.uncheckedImage = params.uncheckedImage or self.uncheckedImage or 'checked'
+    checkbox.uncheckedColors = params.uncheckedColors or self.uncheckedColors or Ui.INVISIBLE_COLORS
+
+    if params.checked then
+        checkbox.attributes.image = checkbox.checkedImage
+        checkbox.attributes.colors = checkbox.checkedColors
+    else
+        checkbox.attributes.image = checkbox.uncheckedImage
+        checkbox.attributes.colors = checkbox.uncheckedColors
+    end
+
+    if grouped then
+        checkbox.group = self
+        checkbox.select = Ui.checkboxGroupSelect
+        table.insert(self.checkboxes, checkbox)
+    end
+
+    setmetatable(checkbox, Ui)
+    if params.onClick then
+        checkbox:registerOnClick(params.onClick)
+    elseif grouped and self.onClick then
+        checkbox:registerOnClick(function() self.onClick(checkbox) end)
+    else
+        checkbox:registerOnClick(function() end)
+    end
+
+    return checkbox
+end
+
+function Ui:checkboxGroupSelect()
+    for _, checkbox in ipairs(self.group.checkboxes) do
+        if checkbox == self then
+            checkbox:setChecked(true)
+        else
+            checkbox:setChecked(false)
+        end
+    end
+end
+
+function Ui:text(params)
+    assert(params.text ~= nil and 'string' == type(params.text))
+    assert(params.font == nil or 'string' == type(params.font))
+    assert(params.fontSize == nil or 'number' == type(params.fontSize))
+    assert(params.fontStyle == nil or 'string' == type(params.fontStyle))
+    assert(params.fontBase == nil or 'string' == type(params.fontBase))
+    assert(params.alignment == nil or 'string' == type(params.alignment))
+
+    local text = self:createElement('Text', params)
+    text.z = self.z
+    -- text.rotation = '0 0 0'
+    -- text.scale = self.scale
+    text.attributes.text = params.text
+    text.attributes.color = params.color or '#323232'
+
+    if params.font ~= nil then
+        text.attributes.font = params.font
+    end
+
+    if params.fontSize ~= nil then
+        text.attributes.fontSize = params.fontSize
+    end
+
+    if params.fontStyle ~= nil then
+        text.attributes.fontStyle = params.fontStyle
+    end
+
+    -- This combines font and style 
+    -- base = 'Cardo/Cardo-' and style = 'Bold' -> font = 'Cardo/Cardo-Bold'
+    if params.fontBase ~= nil then
+        text.attributes.fontStyle = 'Normal'
+        text.attributes.font = params.fontBase .. (params.fontStyle or 'Normal')
+    end
+
+    if params.alignment ~= nil then
+        text.attributes.alignment = params.alignment
+    end
+    
+    setmetatable(text, Ui)
+    -- We leave this, otherwise it will show the button icon on all text elements
+    if params.onClick then
+        text:registerOnClick(params.onClick)
+    end
+    if params.onMouseEnter then
+        text:registerOnMouseEnter(params.onMouseEnter)
+    end
+    if params.onMouseExit then
+        text:registerOnMouseExit(params.onMouseExit)
+    end
+
+    return text
+end
+
+function Ui:input(params)
+    assert(params.text == nil or 'string' == type(params.text))
+    assert(params.font == nil or 'string' == type(params.font))
+    assert(params.fontSize == nil or 'number' == type(params.fontSize))
+    assert(params.fontStyle == nil or 'string' == type(params.fontStyle))
+    assert(params.fontBase == nil or 'string' == type(params.fontBase))
+    assert(params.lineType == nil or 'string' == type(params.lineType))
+    assert(params.placeholder == nil or 'string' == type(params.placeholder))
+    assert(params.characterValidation == nil or 'string' == type(params.characterValidation))
+    assert(params.textAlignment == nil or 'string' == type(params.textAlignment))
+
+    local input = self:createElement('InputField', params)
+    input.z = self.z
+    -- input.rotation = '0 0 0'
+    -- input.scale = self.scale
+    input.attributes.verticalOverflow = 'Overflow'
+    input.attributes.textColor = params.textColor or '#323232'
+    input.attributes.colors = params.colors or '#FFFFFF|#FFFFFF|#C8C8C8|rgba(0.78,0.78,0.78,0.5)'
+
+    if params.text ~= nil then input.attributes.text = params.text end
+    if params.font ~= nil then input.attributes.font = params.font end
+    if params.fontSize ~= nil then input.attributes.fontSize = params.fontSize end
+    if params.fontStyle ~= nil then input.attributes.fontStyle = params.fontStyle end
+    if params.lineType ~= nil then input.attributes.lineType = params.lineType end
+    if params.placeholder ~= nil then input.attributes.placeholder = params.placeholder end
+    if params.characterLimit ~= nil then input.attributes.characterLimit = params.characterLimit end
+    if params.characterValidation ~= nil then input.attributes.characterValidation = params.characterValidation end
+    if params.textAlignment ~= nil then input.attributes.textAlignment = params.textAlignment end
+
+    -- This combines font and style 
+    -- base = 'Cardo/Cardo-' and style = 'Bold' -> font = 'Cardo/Cardo-Bold'
+    if params.fontBase ~= nil then
+        input.attributes.fontStyle = 'Normal'
+        input.attributes.font = params.fontBase .. (params.fontStyle or 'Normal')
+    end
+
+    setmetatable(input, Ui)
+    input:registerOnValueChanged(params.onValueChanged)
+    input:registerOnEndEdit(params.onEndEdit)
+
+    return input
+end
+
+function Ui:image(params)
+    assert(params.image ~= nil and 'string' == type(params.image))
+
+    local image = self:createElement('Image', params)
+    image.z = self.z
+    -- image.rotation = '0 0 0'
+    -- image.scale = self.scale
+    image.attributes.image = params.image
+    image.attributes.raycastTarget = true
+    image.attributes.preserveAspect = true
+
+    setmetatable(image, Ui)
+    -- We leave this, otherwise it will show the button icon on all image elements
+    if params.onClick then
+        image:registerOnClick(params.onClick)
+    end
+    if params.onMouseEnter then
+        image:registerOnMouseEnter(params.onMouseEnter)
+    end
+    if params.onMouseExit then
+        image:registerOnMouseExit(params.onMouseExit)
+    end
+
+    return image
+end
+
+function Ui:slider(params)
+    assert(params.minValue ~= nil and 'number' == type(params.minValue))
+    assert(params.maxValue ~= nil and 'number' == type(params.maxValue))
+    assert(params.value == nil or 'number' == type(params.value))
+    assert(params.wholeNumbers == nil or 'boolean' == type(params.wholeNumbers))
+    assert(params.direction == nil or 'string' == type(params.direction))
+    assert(params.fillColor == nil or 'string' == type(params.fillColor))
+    assert(params.fillImage == nil or 'string' == type(params.fillImage))
+    assert(params.handleColor == nil or 'string' == type(params.handleColor))
+    assert(params.handleImage == nil or 'string' == type(params.handleImage))
+    assert(params.colors == nil or 'string' == type(params.colors))
+
+    local slider = self:createElement('Slider', params)
+    slider.z = self.z
+    -- slider.rotation = '0 0 0'
+    -- slider.scale = self.scale
+    slider.attributes.minValue = params.minValue
+    slider.attributes.maxValue = params.maxValue
+
+    if params.value ~= nil then slider.attributes.value = params.value end
+    if params.wholeNumbers ~= nil then slider.attributes.wholeNumbers = params.wholeNumbers end
+    if params.direction ~= nil then slider.attributes.direction = params.direction end
+    if params.fillColor ~= nil then slider.attributes.fillColor = params.fillColor end
+    if params.fillImage ~= nil then slider.attributes.fillImage = params.fillImage end
+    if params.handleColor ~= nil then slider.attributes.handleColor = params.handleColor end
+    if params.handleImage ~= nil then slider.attributes.handleImage = params.handleImage end
+    if params.colors ~= nil then slider.attributes.colors = params.colors end
+
+    setmetatable(slider, Ui)
+
+    if params.onValueChanged then
+        slider:registerOnValueChanged(params.onValueChanged)
+    end
+    if params.onMouseEnter then
+        slider:registerOnMouseEnter(params.onMouseEnter)
+    end
+    if params.onMouseExit then
+        slider:registerOnMouseExit(params.onMouseExit)
+    end
+
+    return slider
+end
+
+-- Wait for the UI to not be loading
+-- This can only be used when the element is currently displayed already (it shows the hiding animation)
+function Ui:hide(id)
+    Wait.condition(function()
+        if not id or id == '' then
+            self.object.UI.hide(self.attributes.id)
+            self.attributes.active = false
+        else
+            if #self.children == 0 then return end
+
+            -- Go through the children once
+            for _, child in ipairs(self.children) do
+                if child.attributes.id == id then
+                    self.object.UI.hide(id)
+                    child.attributes.active = false
+                    return
+                end
+            end
+
+            -- Otherwise recursivery go through the children
+            for _, child in ipairs(self.children) do
+                child:hide(id)
+            end
+        end
+    end, function() 
+        return not Ui.getRoot().object.UI.loading and not self.object.UI.loading 
+    end, nil, nil)
+end
+
+-- Wait for the UI to not be loading
+-- This can only be used when the element is displayed already (it shows the show animation)
+function Ui:show(id)
+    Wait.condition(function()
+        if not id or id == '' then
+            self.object.UI.show(self.attributes.id)
+            self.attributes.active = true
+        else
+            if #self.children == 0 then return end
+
+            -- Go through the children once
+            for _, child in ipairs(self.children) do
+                if child.attributes.id == id then
+                    self.object.UI.show(id)
+                    child.attributes.active = true
+                    return
+                end
+            end
+
+            -- Otherwise recursivery go through the children
+            for _, child in ipairs(self.children) do
+                child:show(id)
+            end
+        end
+    end, function() 
+        return not Ui.getRoot().object.UI.loading and not self.object.UI.loading 
+    end, nil, nil)
+end
+
+function Ui.globalRefresh(broadcast)
+    if broadcast then
+        broadcastToAll('Initialising the Ui, please wait (~20s).', Color.Red)
+    end
+
+    Wait.condition(function()
+        if #Ui.root.children > 0 then
+            Ui.root.object.UI.setXmlTable(Ui.root.children)
+        else
+            Ui.root.object.UI.setXml('')
+        end
+    end, function() 
+        return not Ui.root.object.UI.loading 
+    end, nil, nil)
+
+    -- This needs to wait until Ui.root isn't loading.
+    -- I don't know why but it puts blank images otherwise...
+    local loadingCount = 0
+    local loadedCount = 0
+    for _, root in pairs(Ui.rootPerObject) do
+        loadingCount = loadingCount + 1
+        Wait.condition(function()
+            if #root.children > 0 then
+                root.object.UI.setXmlTable(root.children)
+            else
+                root.object.UI.setXml('')
+            end
+
+            Wait.condition(function()
+                loadedCount = loadedCount + 1
+            end, function()
+                return not root.object.UI.loading
+            end, 10, nil)
+        end, function() 
+            return not Ui.root.object.UI.loading 
+        end, nil, nil)
+    end
+
+    if broadcast then
+        Wait.condition(function()
+            broadcastToAll('Ready to play!', Color.Green)
+        end, function() 
+            return loadingCount == loadedCount
+        end, 10, nil)
+    end
+end
+
+function Ui:refresh()
+    if #self.children > 0 then
+        self.object.UI.setXmlTable(self.children)
+    else
+        self.object.UI.setXml('')
+    end
+end
+
+function Ui:getAttribute(attribute)
+    local id = self.attributes.id
+    assert(attribute ~= nil and 'string' == type(attribute))
+
+    return self.object.UI.getAttribute(id, attribute)
+end
+
+function Ui:setAttribute(attribute, attType, value, nilAllowed)
+    local id = self.attributes.id
+    assert(attribute ~= nil and 'string' == type(attribute))
+    assert(attType ~= nil and 'string' == type(attType))
+
+    if nilAllowed then
+        assert(value == nil or attType == type(value))
+    else
+        assert(value ~= nil and attType == type(value))
+    end
+
+    self.attributes[attribute] = value
+    self.object.UI.setAttribute(id, attribute, value)
+end
+
+function Ui:setActive(active) self:setAttribute('active', 'boolean', active) end
+function Ui:setChecked(checked)
+    if checked then
+        self:setImage(self.checkedImage)
+        self:setColors(self.checkedColors)
+    else
+        self:setImage(self.uncheckedImage)
+        self:setColors(self.uncheckedColors)
+    end
+end
+function Ui:setColor(value) self:setAttribute('color', 'string', value ~= nil and tostring(value) or nil, true) end
+function Ui:setColors(value) self:setAttribute('colors', 'string', value ~= nil and tostring(value) or nil, true) end
+function Ui:setFontSize(value) self:setAttribute('fontSize', 'number', value ~= nil and value or 14) end
+function Ui:setHeight(value) self:setAttribute('height', 'number', value ~= nil and value or '100%') end
+function Ui:setIcon(value) self:setAttribute('icon', 'string', value ~= nil and tostring(value) or '') end
+function Ui:setImage(value) self:setAttribute('image', 'string', value ~= nil and tostring(value) or '') end
+function Ui:setInteractable(value) 
+    self:setAttribute('interactable', 'boolean', value)
+    self:setColor(self.attributes.color)
+    self:setColors(self.attributes.colors)
+    self:setTextColor(self.attributes.textColor) 
+end
+function Ui:setIsOn(value) self:setAttribute('isOn', 'boolean', value) end
+function Ui:setOffsetXY(offsetXY) self:setAttribute('offsetXY', 'string', offsetXY) end
+function Ui:setPosition(position) self:setAttribute('position', 'string', position) end
+function Ui:setRectAlignment(value) self:setAttribute('rectAlignment', 'string', value) end
+function Ui:setText(value) 
+    self:setAttribute('text', 'string', value ~= nil and tostring(value) or '')
+    self:setColor(self.attributes.color)
+    self:setColors(self.attributes.colors)
+    self:setTextColor(self.attributes.textColor)
+end
+function Ui:setTextColor(value) self:setAttribute('textColor', 'string', value ~= nil and tostring(value) or nil, true) end
+function Ui:setVisibility(value) self:setAttribute('visibility', 'string', value ~= nil and tostring(value) or nil, true) end
+function Ui:setWidth(value) self:setAttribute('width', 'number', value ~= nil and value or '100%') end
+
+-- This doesn't need the setAttribute because we've already registeredOnClick initially, and that calls self.onClick instead of self.attributes.onClick
+function Ui:setOnClick(onClick)
+    assert(onClick == nil or 'function' == type(onClick))
+    self.onClick = onClick
+end
+
+function Ui:setOnMouseEnter(onMouseEnter)
+    assert(onMouseEnter == nil or 'function' == type(onMouseEnter))
+    self.onMouseEnter = onMouseEnter
+end
+
+function Ui:setOnMouseExit(onMouseExit)
+    assert(onMouseExit == nil or 'function' == type(onMouseExit))
+    self.onMouseExit = onMouseExit
+end
+
+function Ui:setOnValueChanged(onValueChanged)
+    assert(onValueChanged == nil or 'function' == type(onValueChanged))
+    self.onValueChanged = onValueChanged
+end
+
+function Ui:registerOnClick(onClick)
+    assert(onClick == nil or 'function' == type(onClick))
+
+    -- Save the on click function
+    self.onClick = onClick or function() end
+
+    local onClickFunctionName = self.attributes.id.."_OnClick"
+    if self.object and self.object ~= Global then
+        onClickFunctionName = table.concat({'object', self.object.getGUID(), '_', onClickFunctionName}, '')
+    end
+    Global.setVar(onClickFunctionName, function(player, mouseButton, id)
+        self.onClick(player, mouseButton, id)
+    end)
+    self.attributes.onClick = "Global/"..onClickFunctionName
+end
+
+function Ui:registerOnMouseEnter(onMouseEnter)
+    assert(onMouseEnter == nil or 'function' == type(onMouseEnter))
+
+    -- Save the on mouse enter function
+    self.onMouseEnter = onMouseEnter or function() end
+
+    local onMouseEnterFunctionName = self.attributes.id.."_OnMouseEnter"
+    if self.object and self.object ~= Global then
+        onMouseEnterFunctionName = table.concat({'object', self.object.getGUID(), '_', onMouseEnterFunctionName}, '')
+    end
+    Global.setVar(onMouseEnterFunctionName, function(player, mouseButton, id)
+        self.onMouseEnter(player, mouseButton, id)
+    end)
+    self.attributes.onMouseEnter = "Global/"..onMouseEnterFunctionName
+end
+
+function Ui:registerOnMouseExit(onMouseExit)
+    assert(onMouseExit == nil or 'function' == type(onMouseExit))
+
+    -- Save the on mouse exit function
+    self.onMouseExit = onMouseExit or function() end
+
+    local onMouseExitFunctionName = self.attributes.id.."_OnMouseExit"
+    if self.object and self.object ~= Global then
+        onMouseExitFunctionName = table.concat({'object', self.object.getGUID(), '_', onMouseExitFunctionName}, '')
+    end
+    Global.setVar(onMouseExitFunctionName, function(player, mouseButton, id)
+        self.onMouseExit(player, mouseButton, id)
+    end)
+    self.attributes.onMouseExit = "Global/"..onMouseExitFunctionName
+end
+
+function Ui:registerOnValueChanged(onValueChanged)
+    assert(onValueChanged == nil or 'function' == type(onValueChanged))
+
+    -- Save the on click function
+    self.onValueChanged = onValueChanged or function() end
+
+    local onValueChangedFunctionName = self.attributes.id.."_onValueChanged"
+    if self.object and self.object ~= Global then
+        onValueChangedFunctionName = table.concat({'object', self.object.getGUID(), '_', onValueChangedFunctionName}, '')
+    end
+    Global.setVar(onValueChangedFunctionName, function(player, value, id)
+        self.onValueChanged(player, value, id)
+    end)
+    self.attributes.onValueChanged = "Global/"..onValueChangedFunctionName
+end
+
+function Ui:registerOnEndEdit(onEndEdit)
+    assert(onEndEdit == nil or 'function' == type(onEndEdit))
+
+    -- Save the on click function
+    self.onEndEdit = onEndEdit or function() end
+
+    local onEndEditFunctionName = self.attributes.id.."_onEndEdit"
+    if self.object and self.object ~= Global then
+        onEndEditFunctionName = table.concat({'object', self.object.getGUID(), '_', onEndEditFunctionName}, '')
+    end
+    Global.setVar(onEndEditFunctionName, function(player, isOn, id)
+        self.onEndEdit(player, isOn, id)
+    end)
+    self.attributes.onEndEdit = "Global/"..onEndEditFunctionName
+end
+
+function Ui:slideAnimation(endOffsetXYZ, duration, easing)
+    easing = easing or 'outQuad'
+
+    local startOffsetX, startOffsetY, startOffsetZ = 0, 0, 0
+    local endOffsetX, endOffsetY, endOffsetZ = 0, 0, 0
+
+    if self.attributes.offsetXY == nil then
+        startOffsetX, startOffsetY, startOffsetZ = (self.attributes.position or "0 0 0"):match("([%-]?%d+%.?%d*)%s+([%-]?%d+%.?%d*)%s+([%-]?%d+%.?%d*)")
+        startOffsetX = tonumber(startOffsetX) or 0
+        startOffsetY = tonumber(startOffsetY) or 0
+        startOffsetZ = tonumber(startOffsetZ) or 0
+
+        endOffsetX, endOffsetY, endOffsetZ = endOffsetXYZ:match("([%-]?%d+%.?%d*)%s+([%-]?%d+%.?%d*)%s+([%-]?%d+%.?%d*)")
+        endOffsetX = tonumber(endOffsetX) or 0
+        endOffsetY = tonumber(endOffsetY) or 0
+        endOffsetZ = tonumber(endOffsetZ) or 0
+    else
+        startOffsetX, startOffsetY = (self.attributes.offsetXY or "0 0"):match("([%-]?%d+%.?%d*)%s+([%-]?%d+%.?%d*)")
+        startOffsetX = tonumber(startOffsetX) or 0
+        startOffsetY = tonumber(startOffsetY) or 0
+
+        endOffsetX, endOffsetY = endOffsetXYZ:match("([%-]?%d+%.?%d*)%s+([%-]?%d+%.?%d*)")
+        endOffsetX = tonumber(endOffsetX) or 0
+        endOffsetY = tonumber(endOffsetY) or 0
+    end
+
+    local startTime = os.clock()
+
+    local ease = {
+        outQuad   = function(t) return t*(2-t) end,
+        outCubic  = function(t) return 1 - (1 - t)^3 end,
+        outQuint  = function(t) return 1 - (1 - t)^5 end,
+        outExpo   = function(t) return (t==1) and 1 or 1 - 2^(-10*t) end,
+        inQuint   = function(t) return t^5 end,
+        inExpo    = function(t) return (t==0) and 0 or 2^(10*(t-1)) end,
+        inOutSine = function(t) return 0.5 - 0.5*math.cos(math.pi*t) end,
+        linear    = function(t) return t end,
+    }
+
+    local function step()
+        local t = math.min((os.clock() - startTime) / duration, 1)
+        local eased = ease[easing](t)
+        local x = startOffsetX + (endOffsetX - startOffsetX) * eased
+        local y = startOffsetY + (endOffsetY - startOffsetY) * eased
+        local z = startOffsetZ + (endOffsetZ - startOffsetZ) * eased
+
+        if self.attributes.offsetXY == nil then
+            self:setPosition(string.format("%d %d %d", x, y, z))
+        else
+            self:setOffsetXY(string.format("%d %d", x, y))
+        end
+        
+        if t < 1 then Wait.frames(step, 1) end
+    end
+
+    step()
+end
+
+function Ui.getRoot()
+    return Ui.root
+end
+
+function Ui.getRootPerObject(object)
+    if not object or object == Global then
+        return Ui.getRoot()
+    else
+        return Ui.rootPerObject[object]
+    end
+end
+
+function Ui:wipe()
+    self.children = {}
+    self.attributes = {}
+    self:refresh()
+end
+
+function Ui:fullWipe()
+    self:wipe()
+
+    for _, root in pairs(self.rootPerObject) do
+        root:wipe()
+    end
+end
+
+function Ui.isUiLoading()
+    if Ui.getRoot().object.UI.loading then
+        return true
+    else
+        for _, root in pairs(Ui.rootPerObject) do
+            if root.object.UI.loading then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+------------------------------------------------------
+
+return {
+    init = Ui.init,
+    globalRefresh = Ui.globalRefresh,
+    getRoot = Ui.getRoot,
+    getRootPerObject = Ui.getRootPerObject,
+    createRootOnObject = Ui.createRootOnObject,
+    isUiLoading = Ui.isUiLoading,
+
+    TRANSPARENT_INPUT_COLORS = Ui.TRANSPARENT_INPUT_COLORS,
+    DEBUG_TRANSPARENT_INPUT_COLORS = Ui.DEBUG_TRANSPARENT_INPUT_COLORS,
+    ANIMATION_LOCK_DELAY = Ui.ANIMATION_LOCK_DELAY,
+    VISIBLE_COLORS = Ui.VISIBLE_COLORS,
+    INVISIBLE_COLORS = Ui.INVISIBLE_COLORS,
+}

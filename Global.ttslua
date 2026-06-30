@@ -1,0 +1,69 @@
+-- This project uses Benjamin-Dobell/luabundle git repo to organise this project
+
+-- Naming conventions, hopefully that's understandable
+-- Classes: PascalCase
+-- Functions: camelCase
+-- Global vars: underscore: CONSTANTS_LIKE_THIS and variables_like_this
+-- Local vars: camelCase
+
+local Constants = require('Constants')
+local EventManager = require('EventManager')
+_G.EventManager = EventManager  -- for reflection/debugging access
+local GlobalUi = require('GlobalUi')
+local Log = require('Log').ForModule('Global')
+local Options = require('Options')
+local Ui = require('Ui')
+
+------------------------------------------------------
+
+local NOT_INTERACTABLE = {
+    '',
+}
+
+function onLoad(script_state)
+    -- Random seed with a couple of fake numbers
+    math.randomseed(os.time())
+    math.random(); math.random(); math.random()
+
+    -- Disable non-interactable objects
+    for _, objectGUID in ipairs(NOT_INTERACTABLE) do
+        getObjectFromGUID(objectGUID).interactable = false
+    end
+
+    -- Parse save data
+    local savedData = JSON.decode(script_state) or {}
+    -- Uncomment this to wipe it at the start
+    -- local savedData = {}
+
+    Log.init()
+    EventManager.init(savedData.event_manager or {})
+    Ui.init()
+    Options.init(savedData.options or {})
+    GlobalUi.init()
+    
+    if not Options.isManualSetup() then
+        Ui.globalRefresh()
+
+        if Options.isSetupComplete() then
+            GlobalUi.hideSetup()
+            
+            broadcastToAll('Game loaded', Color.Green)
+        else
+            GlobalUi.showSetup()
+        end
+    end
+end
+
+function onSave()
+    local dataToSave = {}
+
+    if Options.isSetupComplete() then
+        dataToSave.options = Options.save()
+    end
+
+    return JSON.encode(dataToSave)
+end
+
+function handleEvent(data)
+    return EventManager.handleObjectEvent(data)
+end

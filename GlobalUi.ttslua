@@ -1,0 +1,187 @@
+local GlobalUi = {}
+GlobalUi.__index = GlobalUi
+
+local Constants = require('Constants')
+local EventManager = require('EventManager')
+local Log = require('Log').ForModule('GlobalUi')
+local Options = require('Options')
+local Setup = require('Setup')
+local Ui = require('Ui')
+
+------------------------------------------------------
+
+function GlobalUi.init()
+    -- Do not show the UI if we've selected a manual setup previously
+    if Options.isManualSetup() then
+        return
+    end
+
+    assert(Ui.getRoot() ~= nil)
+
+    GlobalUi.ui = {}
+    GlobalUi.first_setup_click = true
+
+    GlobalUi.initStartUi()
+    GlobalUi.initSetupUi()
+end
+
+function GlobalUi.initStartUi()
+    -- Setup choice
+    GlobalUi.ui.menu_panel = Ui.getRoot():verticalLayout({ 
+        id = 'menu-panel', width = 300, height = 150, x = 130, y = -10, color = Constants.BACKGROUND_COLOR, active = false
+    })
+    GlobalUi.ui.menu_panel.attributes.raycastTarget = true
+    GlobalUi.ui.menu_panel.attributes.allowDragging = true
+    GlobalUi.ui.menu_panel.attributes.returnToOriginalPositionWhenReleased = false
+
+    local text = GlobalUi.ui.menu_panel:text({
+        id = 'choose-setup-type', text = 'Choose a setup', fontSize = 30, fontStyle = 'Bold', color = Constants.TEXT_COLOR,
+    })
+    local buttonLayout = GlobalUi.ui.menu_panel:horizontalLayout({
+        id = 'setup-button-hl', height = 50, padding = '10 10 0 10', spacing = 10,
+    })
+
+    GlobalUi.ui.scripted_setup_button = buttonLayout:button({ 
+        id = 'scripted-setup-button', text = 'Scripted', fontSize = 30, 
+        color = Constants.BUTTON_BACKGROUND_COLOR, textColor = Constants.BUTTON_TEXT_COLOR,
+        onClick = function() 
+            if GlobalUi.first_setup_click == true then
+                broadcastToAll('Make sure all players are seated, then click again.', Color.Yellow)
+                GlobalUi.first_setup_click = false
+            else
+                GlobalUi.showSetup()
+            end
+        end, })
+
+    GlobalUi.ui.manual_setup_button = buttonLayout:button({ 
+        id = 'manual-setup-button', text = 'Manual', fontSize = 30, 
+        color = Constants.BUTTON_BACKGROUND_COLOR, textColor = Constants.BUTTON_TEXT_COLOR,
+        onClick = function()
+            Log:debug('Manual setup selected, wiping everything')
+            Options.setup_complete = true
+            Options.manual_setup = true
+
+            Ui.getRoot():fullWipe()
+            EventManager.wipeAllHandlers()
+        end,
+    })
+end
+
+function GlobalUi.initSetupUi()
+    -----------------
+    -- Main Panel  --
+    -----------------
+    GlobalUi.ui.setup_panel = Ui.getRoot():verticalLayout({ 
+        id = 'setup-panel', width = 700, height = 620, x = 0, y = 0, color = Constants.BACKGROUND_COLOR, 
+        padding = '40 40 20 20', spacing = 20, rectAlignment = 'MiddleCenter', active = false
+    })
+    GlobalUi.ui.setup_panel.attributes.raycastTarget = true
+    GlobalUi.ui.setup_panel.attributes.allowDragging = true
+    GlobalUi.ui.setup_panel.attributes.returnToOriginalPositionWhenReleased = false
+    GlobalUi.ui.setup_panel.attributes.childForceExpandHeight = false
+
+    local title = GlobalUi.ui.setup_panel:text({
+        id = 'setup-panel-title', text = 'Select the setup options', fontSize = 25, fontStyle = 'Bold', 
+        color = Constants.TEXT_COLOR, height = 60,
+    })
+
+    ------------------
+    -- Main options --
+    ------------------
+
+    -- Example line --
+    -- local moduleSetupHl = GlobalUi.ui.setup_panel:horizontalLayout({ 
+    --     id = 'module-hl', spacing = 30, rectAlignment = 'MiddleCenter',
+    -- })
+    
+    -- local moduleSetupText = moduleSetupHl:text({
+    --     id = 'module-text', text = 'Modules:', fontSize = 30, color = Constants.TEXT_COLOR, width = 200,
+    --     alignment = 'MiddleLeft',
+    -- })
+
+    -- local moduleHl = moduleSetupHl:horizontalLayout({
+    --     id = 'module-toggle-hl', spacing = 10, width = 370,
+    -- })
+
+    -- local sideQuestsModuleButton = moduleHl:toggleButton({
+    --     id = 'side-quests-module', text = Constants.SIDE_QUESTS_MODULE, fontSize = 30,
+    --     textColor = Constants.BUTTON_TEXT_COLOR, colors = Constants.GLOBAL_BUTTON_BACKGROUND_COLORS,
+    --     isOn = (Options.side_quests_module == true),
+    --     onValueChanged = function(_, isOn) 
+    --         Options.side_quests_module = (isOn == 'True')
+    --     end,
+    -- })
+    -- sideQuestsModuleButton.attributes.selectedBackgroundColor = Constants.GLOBAL_BUTTON_ON_COLOR
+    -- sideQuestsModuleButton.attributes.deselectedBackgroundColor = Constants.GLOBAL_BUTTON_OFF_COLOR
+
+    -- local placeholderModuleButton = moduleHl:toggleButton({
+    --     id = 'placeholder-module', text = '', fontSize = 30,
+    --     colors = '#00000000|#00000000|#00000000|#00000000', textColor = '#00000000',
+    -- })
+    -- placeholderModuleButton.attributes.selectedBackgroundColor = '#00000000'
+    -- placeholderModuleButton.attributes.deselectedBackgroundColor = '#00000000'
+
+    ------------------
+    -- Setup button --
+    ------------------
+    local setupButtonPanel = GlobalUi.ui.setup_panel:panel({ 
+        id = 'setup-button-hl', height = 90
+    })
+    local setupButton = setupButtonPanel:button({ 
+        id = 'start-setup-button', text = 'Setup', fontSize = 30, width = 200, height = 65, 
+        rectAlignment = 'MiddleCenter', colors = Constants.BUTTON_BACKGROUND_COLORS, 
+        color = Constants.BUTTON_BACKGROUND_COLOR,
+        textColor = Constants.BUTTON_TEXT_COLOR, onClick = function() 
+            if getSeatedPlayers() < 1 then
+                broadcastToAll('At least one player must be seated to start the game.', Color.Red)
+                return
+            end
+
+            Log:info('Starting scripted setup with options:\n  difficulty = %s\n  rival = %s\n' 
+                            .. '  rival difficulty = %s\n', 
+                tostring(Options.selected_difficulty),
+                tostring(Options.selected_rival),
+                tostring(Options.selected_rival_difficulty))
+            Options.manual_setup = false
+            GlobalUi.ui.setup_panel:hide()
+            Setup.setup()
+        end,
+    })
+
+    setupButton.attributes.fontStyle = 'Bold'
+end
+
+function GlobalUi.showSetup()
+    GlobalUi.ui.menu_panel:hide()
+    GlobalUi.ui.setup_panel:show()
+    
+    -- Initialise the seated players
+    for playerColor, _ in pairs(Constants.PLAYER_SETTINGS) do
+        if Player[playerColor].seated then
+            Options.seated_players[playerColor] = true
+        else
+            Options.seated_players[playerColor] = false
+        end
+        GlobalUi.ui.color_buttons[playerColor]:setIsOn(not Options.seated_players[playerColor])
+    end
+end
+
+function GlobalUi.showMenu()
+    GlobalUi.ui.setup_panel:hide()
+    GlobalUi.ui.menu_panel:show()
+end
+
+function GlobalUi.save()
+    local flatData = {}
+
+    return flatData
+end
+
+------------------------------------------------------
+
+return {
+    init = GlobalUi.init,
+    save = GlobalUi.save,
+    showMenu = GlobalUi.showMenu,
+    showSetup = GlobalUi.showSetup,
+}
