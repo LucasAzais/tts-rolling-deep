@@ -730,8 +730,10 @@ function Ui:image(params)
     -- image.rotation = '0 0 0'
     -- image.scale = self.scale
     image.attributes.image = params.image
-    image.attributes.raycastTarget = true
+    params.raycastTarget = true
+    if params.raycastTarget ~= nil then image.attributes.raycastTarget = params.raycastTarget end
     image.attributes.preserveAspect = true
+    if params.preserveAspect ~= nil then image.attributes.preserveAspect = params.preserveAspect end
 
     setmetatable(image, Ui)
     -- We leave this, otherwise it will show the button icon on all image elements

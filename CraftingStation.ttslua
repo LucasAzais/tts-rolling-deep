@@ -1,0 +1,188 @@
+local CraftingStation = {}
+CraftingStation.__index = CraftingStation
+
+local Constants = require('Constants')
+local EventManager = require('EventManager')
+local Log = require('Log').ForModule('CraftingStation')
+local Ui = require('Ui')
+local Utils = require('Utils')
+
+------------------------------------------------------
+
+CraftingStation.FACE_OFFSET = 0.335078
+CraftingStation.CENTER_BY_FACE = {
+    top    = {0,  CraftingStation.FACE_OFFSET, 0},
+    bottom = {0, -CraftingStation.FACE_OFFSET, 0},
+    front  = {0, 0,  CraftingStation.FACE_OFFSET},
+    back   = {0, 0, -CraftingStation.FACE_OFFSET},
+    right  = { CraftingStation.FACE_OFFSET, 0, 0},
+    left   = {-CraftingStation.FACE_OFFSET, 0, 0},
+}
+
+CraftingStation.DECALS = {
+    ["0"] = "https://steamusercontent-a.akamaihd.net/ugc/17082635582484591292/D6F32BF9B9E2190A9B68E2CE1CBCCF8715D3E056/",
+    ["0 + 1 coin"] = "https://steamusercontent-a.akamaihd.net/ugc/14060326987933425321/FA064581D39F25FBE831E3E3FDC8A23371733FFC/",
+    ["0 + 2 coins"] = "https://steamusercontent-a.akamaihd.net/ugc/17711900838934746841/0C74A9A115D13782FB407939A866D9D3515A3C99/",
+    ["0 + 1 potion"] = "https://steamusercontent-a.akamaihd.net/ugc/13129648100504427901/0F35BCE163748198DA1E881DC66411931F34232A/",
+    ["0 + 2 potions"] = "https://steamusercontent-a.akamaihd.net/ugc/13499067145369025349/D64B6CE551062E0FFAF2EAFB9DF6D197BDA180CF/",
+    ["1"] = "https://steamusercontent-a.akamaihd.net/ugc/12014461592791510048/25ADB41DA10548F89160ED81AA6A6731A39DE1A3/",
+    ["1 + 1 coin"] = "https://steamusercontent-a.akamaihd.net/ugc/16532159805328367521/5A0DFADBF15B967B77974291A2FBAD3468EB266B/",
+    ["1 + 2 coins"] = "https://steamusercontent-a.akamaihd.net/ugc/9432711654275573931/D9C388839CEBED9E0B48F4796AE276061F3380DE/",
+    ["1 + 1 potion"] = "https://steamusercontent-a.akamaihd.net/ugc/15874920959205188606/FC973BA248223D9B1DD2DBFA5522CB76C7D006E6/",
+    ["1 + 2 potions"] = "https://steamusercontent-a.akamaihd.net/ugc/15005081467130900646/9852061B7414B7EF067E512D015CFF7D6876B89D/",
+    ["2"] = "https://steamusercontent-a.akamaihd.net/ugc/12693912435354926057/315CB8B3653D3B7ABC484D79AC8E026A8970E1B0/",
+    ["2 + 1 coin"] = "https://steamusercontent-a.akamaihd.net/ugc/13303022271834450278/D209599325C9A3D0AB3A3796EB3EF6B6B5E2B080/",
+    ["2 + 1 potion"] = "https://steamusercontent-a.akamaihd.net/ugc/18275868012575034658/49ED97F53AD635A428EB83B59641E43E7BFD9725/",
+    ["3"] = "https://steamusercontent-a.akamaihd.net/ugc/14448964724378154015/88EF7A5C31581101484F4D9C5F3F2B88941EB60C/",
+    ["3 + 1 coin"] = "https://steamusercontent-a.akamaihd.net/ugc/13621304273696656780/7BBB5F8BB5208DE921C86EFE9A79FA19ED486B95/",
+    ["3 + 1 potion"] = "https://steamusercontent-a.akamaihd.net/ugc/14519024284360314645/A21A3F32BB70BA4644E7BC17F94C7B20A3852CF3/",
+    ["4"] = "https://steamusercontent-a.akamaihd.net/ugc/10382442003101504836/50CD2A2E3ACFD330AC618D8EA427A8395DB3CD43/",
+    ["5"] = "https://steamusercontent-a.akamaihd.net/ugc/13327819997365071147/26C5F111F2CE7CDC1491A1347BEB823D2E5FCD43/",
+    ["Gary"] = "https://steamusercontent-a.akamaihd.net/ugc/15486405818436910567/3B5D156B402689341E270B1E0811D233522BCFDA/",
+    ["Sir Pipsqueak"] = "https://steamusercontent-a.akamaihd.net/ugc/17095901576730716058/2292245ED3D1F85BB8F11B344ED2CF315021B794/",
+    ["Sadie Snake-Eyes"] = "https://steamusercontent-a.akamaihd.net/ugc/10318055360374464961/41ACC359A70D90A1476A6B0E5D6915C65939ED27/",
+}
+
+function CraftingStation.init()
+    CraftingStation.station = getObjectsWithTag(Constants.CRAFTING_STATION)[1]
+    if not CraftingStation.station then
+        Log.error('Crafting station not found.')
+        return
+    end
+
+    CraftingStation.initUi()
+end
+
+function CraftingStation.initUi()
+    local root = Ui.createRootOnObject('crafting-station', CraftingStation.station, 1.2)
+    root.scale = '0.1 0.1'
+
+    local panel = root:panel({ id = 'main-panel', width = 595, height = 150, x = -0.75, y = 74, })
+
+    -- Transparent craft button
+    CraftingStation.craftButton = panel:button({ id = 'craft-button', text = '', colors = Ui.TRANSPARENT_INPUT_COLORS,
+        onClick = function()
+            CraftingStation.craftDieFaceOntoDie()
+        end
+    })
+end
+
+function CraftingStation.craftDieFaceOntoDie()
+    -- Check there is both a die and a shop card in the slots
+    local die = nil
+    local card = nil
+    
+    for _, snap in ipairs(CraftingStation.station.getSnapPoints()) do
+        if Utils.contains(snap.tags, Constants.DIE) then
+            die = Utils.getFirstElementAbovePosition(
+                CraftingStation.station.positionToWorld(snap.position) + Vector(0, -1, 0), Constants.DIE)
+        elseif Utils.contains(snap.tags, Constants.FACE_CRAFT) then
+            card = Utils.getFirstElementOfTypeAbovePosition(
+                CraftingStation.station.positionToWorld(snap.position) + Vector(0, -1, 0), 'Card', Constants.FACE_CRAFT)
+        end
+    end
+
+    if not die or not card then
+        broadcastToAll('Please place both a die and a valid shop card on the crafting station.', Color.Red)
+        return
+    end
+
+    -- Make sure the die and card have the same color (or none)
+    local dieColor = CraftingStation.getElementColor(die)
+    local cardColor = CraftingStation.getElementColor(card)
+
+    if dieColor and cardColor and dieColor ~= cardColor then
+        broadcastToAll('The die and card must be the same color.', Color.Red)
+        return
+    end
+
+    -- Figure out the shop card face
+    local cardData = JSON.decode(card.getGMNotes() ~= '' and card.getGMNotes() or '{}')
+    local face = cardData.craft.face
+    local coin = cardData.craft.coin or 0
+    local potion = cardData.craft.potion or 0
+
+    -- Construct the expected decal name
+    local decalName = face
+    if coin > 0 or potion > 0 then
+        if coin > 0 then
+            decalName = decalName .. ' + ' .. coin .. ' coin' .. (coin > 1 and 's' or '')
+        end
+
+        if potion > 0 then
+            decalName = decalName .. ' + ' .. potion .. ' potion' .. (potion > 1 and 's' or '')
+        end
+    end
+
+    -- Find the top decal and replace it
+    local decals = die.getDecals() or {}
+    local diePosition = die.getPosition()
+
+    local topIndex = 0
+    local topYDelta = -999
+    local topFace = nil -- Use this to recenter the face
+    for i, decal in ipairs(decals) do
+        -- Look at it's global position and keep the highest one
+        local worldPosition = die.positionToWorld(decal.position)
+        local yDelta = worldPosition.y - diePosition.y
+
+        if yDelta > topYDelta then
+            topYDelta = yDelta
+            topIndex = i
+            topFace = CraftingStation.getDecalFace(decal.position)
+        end
+    end
+
+    -- Check the top face isn't a character side
+    if decals[topIndex].name == 'Gary' or decals[topIndex].name == 'Sir Pipsqueak' 
+        or decals[topIndex].name == 'Sadie Snake-Eyes' then
+        broadcastToAll('Cannot craft over a character face.', Color.Red)
+        return
+    end
+
+    -- Overwrite the decal and recenter it
+    decals[topIndex].name = decalName
+    decals[topIndex].url = CraftingStation.DECALS[tostring(decalName)]
+    decals[topIndex].position = CraftingStation.CENTER_BY_FACE[topFace]
+
+    die.setDecals(decals)
+
+    broadcastToAll('Crafting complete!', Color.Green)
+end
+
+function CraftingStation.getDecalFace(pos)
+    local ax, ay, az = math.abs(pos.x), math.abs(pos.y), math.abs(pos.z)
+
+    if ay >= ax and ay >= az then
+        return pos.y > 0 and "top" or "bottom"
+    elseif ax >= ay and ax >= az then
+        return pos.x > 0 and "right" or "left"
+    else
+        return pos.z > 0 and "front" or "back"
+    end
+end
+
+function CraftingStation.getElementColor(element)
+    if Utils.contains(element.getTags(), Constants.RED) then
+        return Constants.RED
+    elseif Utils.contains(element.getTags(), Constants.GREEN) then
+        return Constants.GREEN
+    elseif Utils.contains(element.getTags(), Constants.PURPLE) then
+        return Constants.PURPLE
+    end
+
+    return nil
+end
+
+function CraftingStation.save()
+    local flatSetup = {}
+
+    return flatSetup
+end
+
+------------------------------------------------------
+
+return {
+    init = CraftingStation.init,
+    save = CraftingStation.save,
+}

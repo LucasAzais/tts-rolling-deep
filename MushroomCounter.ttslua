@@ -24,7 +24,7 @@ function MushroomCounter.initUi()
     MushroomCounter.counters = {}
 
     for index, tile in ipairs(mushroomTiles) do
-        local mushroomTileRoot = Ui.createRootOnObject('luminary-board', tile, 1.2)
+        local mushroomTileRoot = Ui.createRootOnObject('mushroom-tile-' .. index, tile, 1.2)
         mushroomTileRoot.scale = '0.1 0.1'
 
         local panel = mushroomTileRoot:panel({ id = 'main-panel', width = 1000, height = 700, x = 200, y = 0 })

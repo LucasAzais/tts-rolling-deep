@@ -23,6 +23,7 @@ function GlobalUi.init()
 
     GlobalUi.initStartUi()
     GlobalUi.initSetupUi()
+    GlobalUi.initPlayerAidUi()
 end
 
 function GlobalUi.initStartUi()
@@ -46,7 +47,7 @@ function GlobalUi.initStartUi()
 
     startUi.scripted_setup_button = buttonLayout:button({ 
         id = 'scripted-setup-button', text = 'Scripted', fontSize = 30, 
-        color = Constants.BUTTON_BACKGROUND_COLOR, textColor = Constants.BUTTON_TEXT_COLOR,
+        textColor = Constants.BUTTON_TEXT_COLOR, colors = Constants.BUTTON_BACKGROUND_COLORS,
         onClick = function() 
             if GlobalUi.first_setup_click == true then
                 broadcastToAll('Make sure all players are seated, then click again.', Color.Yellow)
@@ -58,7 +59,7 @@ function GlobalUi.initStartUi()
 
     startUi.manual_setup_button = buttonLayout:button({ 
         id = 'manual-setup-button', text = 'Manual', fontSize = 30, 
-        color = Constants.BUTTON_BACKGROUND_COLOR, textColor = Constants.BUTTON_TEXT_COLOR,
+        textColor = Constants.BUTTON_TEXT_COLOR, colors = Constants.BUTTON_BACKGROUND_COLORS,
         onClick = function()
             Log:debug('Manual setup selected, wiping everything')
             Options.setup_complete = true
@@ -77,25 +78,48 @@ function GlobalUi.initSetupUi()
     -----------------
     -- Main Panel  --
     -----------------
-    setupUi.setup_panel = Ui.getRoot():verticalLayout({ 
-        id = 'setup-panel', width = 640, height = 280, x = 0, y = 0, color = Constants.BACKGROUND_COLOR, 
-        padding = '40 40 20 20', spacing = 20, rectAlignment = 'MiddleCenter', active = false
+    setupUi.setup_panel = Ui.getRoot():panel({
+        id = 'setup-panel', width = 650, height = 290, x = 0, y = 0, 
+        rectAlignment = 'MiddleCenter', active = false,
     })
     setupUi.setup_panel.attributes.raycastTarget = true
-    setupUi.setup_panel.attributes.allowDragging = true
+    setupUi.setup_panel.attributes.allowDragging = false
     setupUi.setup_panel.attributes.returnToOriginalPositionWhenReleased = false
-    setupUi.setup_panel.attributes.childForceExpandHeight = false
 
-    local title = setupUi.setup_panel:text({
-        id = 'setup-panel-title', text = 'Select the setup options', fontSize = 25, fontStyle = 'Bold', 
+    -- 4 small borders around it
+    setupUi.setup_panel:panel({
+        id = 'top-border', width = 650, height = 10, x = 0, y = -280/2, color = '#8EC7D3FF',
+        rectAlignment = 'MiddleCenter',
+    })
+    setupUi.setup_panel:panel({
+        id = 'bottom-border', width = 650, height = 10, x = 0, y = 280/2, color = '#8EC7D3FF',
+        rectAlignment = 'MiddleCenter',
+    })
+    setupUi.setup_panel:panel({
+        id = 'left-border', width = 10, height = 290, x = -640/2, y = 0, color = '#8EC7D3FF',
+        rectAlignment = 'MiddleCenter',
+    })
+    setupUi.setup_panel:panel({
+        id = 'right-border', width = 10, height = 290, x = 640/2, y = 0, color = '#8EC7D3FF',
+        rectAlignment = 'MiddleCenter',
+    })
+
+    setupUi.inner_panel = setupUi.setup_panel:verticalLayout({ 
+        id = 'inner-panel', width = 640, height = 280, x = 0, y = 0, color = Constants.BACKGROUND_COLOR, 
+        padding = '40 40 20 20', spacing = 20, rectAlignment = 'MiddleCenter',
+    })
+
+    local title = setupUi.inner_panel:text({
+        id = 'inner-panel-title', text = 'Select the setup options', fontSize = 25, fontStyle = 'Bold', 
         color = Constants.TEXT_COLOR, height = 60,
     })
+    setupUi.inner_panel.attributes.childForceExpandHeight = false
 
     ------------------
     -- Main options --
     ------------------
 
-    local difficultyToggle = setupUi.setup_panel:toggleGroup({ id = 'difficulty-toggle', height = 65, })
+    local difficultyToggle = setupUi.inner_panel:toggleGroup({ id = 'difficulty-toggle', height = 65, })
     local difficultyHl = difficultyToggle:horizontalLayout({ 
         id = 'difficulty-hl', spacing = 30, rectAlignment = 'MiddleCenter',
     })
@@ -107,7 +131,7 @@ function GlobalUi.initSetupUi()
 
     local normalDifficultyToggle = difficultyHl:toggleButton({
         id = 'normal-difficulty', text = Constants.NORMAL, fontSize = 30,
-        colors = Constants.GLOBAL_BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR,
+        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR,
         isOn = (Options.selected_difficulty == Constants.NORMAL or Options.selected_difficulty == nil),
         onValueChanged = function(_, isOn) 
             if isOn == 'True' then
@@ -120,7 +144,7 @@ function GlobalUi.initSetupUi()
 
     local advancedDifficultyToggle = difficultyHl:toggleButton({
         id = 'advanced-difficulty', text = Constants.ADVANCED, fontSize = 30,
-        colors = Constants.GLOBAL_BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR,
+        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR,
         isOn = (Options.selected_difficulty == Constants.ADVANCED),
         onValueChanged = function(_, isOn) 
             if isOn == 'True' then
@@ -134,13 +158,12 @@ function GlobalUi.initSetupUi()
     ------------------
     -- Setup button --
     ------------------
-    local setupButtonPanel = setupUi.setup_panel:panel({ 
+    local setupButtonPanel = setupUi.inner_panel:panel({ 
         id = 'setup-button-hl', height = 90
     })
     local setupButton = setupButtonPanel:button({ 
         id = 'start-setup-button', text = 'Setup', fontSize = 30, width = 200, height = 65, 
         rectAlignment = 'MiddleCenter', colors = Constants.BUTTON_BACKGROUND_COLORS, 
-        color = Constants.BUTTON_BACKGROUND_COLOR,
         textColor = Constants.BUTTON_TEXT_COLOR, onClick = function() 
             if #getSeatedPlayers() < 1 then
                 broadcastToAll('At least one player must be seated to start the game.', Color.Red)
@@ -166,6 +189,46 @@ end
 function GlobalUi.showMenu()
     GlobalUi.ui.setup_ui.setup_panel:hide()
     GlobalUi.ui.start_ui.menu_panel:show()
+end
+
+function GlobalUi.initPlayerAidUi()
+    GlobalUi.ui.player_aid_ui = {}
+    local playerAidUi = GlobalUi.ui.player_aid_ui
+    
+    -- Create the player aid display control button
+    playerAidUi.controlButton = Ui.getRoot():button({
+        id = 'player-aid-control-button', text = 'Player Aid', rectAlignment = 'LowerRight',
+        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR,
+        x = -100, y = 8, width = 200, height = 40, fontSize = 30, onClick = function()
+            playerAidUi.controlButton:hide()
+            playerAidUi.panel:show()
+        end
+    })
+    playerAidUi.controlButton.attributes.allowDragging = true
+    playerAidUi.controlButton.attributes.returnToOriginalPositionWhenReleased = false
+
+    -- Then the actual player aid
+    -- Create a simple panel with both images next to one another
+    playerAidUi.panel = Ui.getRoot():horizontalLayout({
+        id = 'player-aid-panel', spacing = 0, rectAlignment = 'LowerRight',
+        height = 410, width = 534, active = false,
+    })
+    playerAidUi.panel.attributes.allowDragging = true
+    playerAidUi.panel.attributes.returnToOriginalPositionWhenReleased = false
+
+    playerAidUi.firstAidImage = playerAidUi.panel:image({
+        id = 'first-aid-image', image = 'player-aid-1', onClick = function()
+            playerAidUi.panel:hide()
+            playerAidUi.controlButton:show()
+        end
+    })
+
+    playerAidUi.secondPlayerAidImage = playerAidUi.panel:image({
+        id = 'second-aid-image', image = 'player-aid-2', onClick = function()
+            playerAidUi.panel:hide()
+            playerAidUi.controlButton:show()
+        end
+    })
 end
 
 function GlobalUi.save()

@@ -6,19 +6,36 @@
 -- Global vars: underscore: CONSTANTS_LIKE_THIS and variables_like_this
 -- Local vars: camelCase
 
--- TODO: chapter change detection and reset
--- TODO: crafting station
--- TODO: cycle shop (reroll cost left to the player? or menu: start shop phase, reroll, end shop phase)
+-- TODO: Add snap on both shop and die reroll track on 0 space (-1 clover reroll cost card)
+-- TODO: Chapter has enrage_boss even on sections with no boss. Also need enrage_true on round 1 of the chapter to be able to draw an enraged boss
+-- TODO: Handle the case where multiple cards per color are possible in shop extra slots above? might only need the one extra slot
+-- TODO: Auto pay for reroll
+-- TODO: Change mushroom count to purple maybe
+-- TODO: When flipping an hourglass, reset the die reroll counter
+-- TODO: Next round button
+-- TODO: Discard face up might be more convenient
+-- TODO: Detect when current score > target?
+-- TODO: Add some controls to mushrooms? (+1, -1 when clicking on the counter)
+-- TODO: Price reminder on reroll shop button
+-- TODO: Auto discard card after crafting?
+-- TODO: Check if boss is really random, I keep getting similar order
+-- TODO: Add coin/potion counter with interest between brackets
 -- TODO: currency breakdown?
+-- TODO: check we have 3 coins and 3 potions still during setup?
+-- TODO: change chapter -> discard boss card and boss reward if there is one (but it at the bottom or destroy it?)
+-- TODO: might need to keep open/closed shop status between saves (for rollbacks)
+-- TODO: think of a way to implement auto detect for all effects, auto roll and auto count etc I'm sure it's possible honestly
 
+local Chapter = require('Chapter')
 local Constants = require('Constants')
+local CraftingStation = require('CraftingStation')
 local EventManager = require('EventManager')
 _G.EventManager = EventManager  -- for reflection/debugging access
 local GlobalUi = require('GlobalUi')
 local Log = require('Log').ForModule('Global')
-local Options = require('Options')
-local Chapter = require('Chapter')
 local MushroomCounter = require('MushroomCounter')
+local Options = require('Options')
+local Shop = require('Shop')
 local Ui = require('Ui')
 
 ------------------------------------------------------
@@ -49,16 +66,18 @@ function onLoad(script_state)
     GlobalUi.init()
     Chapter.init()
     MushroomCounter.init()
+    CraftingStation.init()
+    Shop.init()
     
     if not Options.isManualSetup() then
         Ui.globalRefresh()
 
         if Options.isSetupComplete() then
-            GlobalUi.hideSetup()
-            
             broadcastToAll('Game loaded', Color.Green)
         else
-            GlobalUi.showMenu()
+            Wait.frames(function()
+                GlobalUi.showMenu()
+            end, 20)
         end
     end
 end

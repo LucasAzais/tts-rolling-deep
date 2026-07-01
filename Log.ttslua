@@ -13,6 +13,9 @@ Log.LEVEL_BY_MODULE = {
     ['GlobalUi'] = Constants.ERROR,
     ['Chapter'] = Constants.DEBUG,
     ['Setup'] = Constants.ERROR,
+    ['Shop'] = Constants.ERROR,
+    ['MushroomCounter'] = Constants.ERROR,
+    ['CraftingStation'] = Constants.ERROR,
 }
 
 function Log.init()

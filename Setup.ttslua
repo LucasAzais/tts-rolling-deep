@@ -12,13 +12,7 @@ local Utils = require('Utils')
 function Setup.setup()
     Log:info('Setting up game')
 
-    -- Set the target score to the appropriate value based on the selected difficulty
-    local level = 1
-    local levelDetail = Chapter.getLevelDetails(Options.getDifficulty(), level)
-    Chapter.setupLevel(level, Options.getDifficulty())
-
     -- Get important elements
-    local bossCurrentPosition = nil
     local bossDeck = nil
     local redShopDeck = nil
     local purpleShopDeck = nil
@@ -27,8 +21,6 @@ function Setup.setup()
     for _, snap in ipairs(Global.getSnapPoints()) do
         if Utils.contains(snap.tags, Constants.BOSS_DECK) then
             bossDeck = Utils.getFirstElementAbovePosition(snap.position + Vector(0, -1, 0), Constants.BOSS_CARD)
-        elseif Utils.contains(snap.tags, Constants.BOSS_CURRENT) then
-            bossCurrentPosition = snap.position
         elseif Utils.contains(snap.tags, Constants.SHOP_DECK) then
             if Utils.contains(snap.tags, Constants.RED) then
                 redShopDeck = Utils.getFirstElementAbovePosition(snap.position + Vector(0, -1, 0), Constants.SHOP_CARD)
@@ -42,19 +34,17 @@ function Setup.setup()
         end
     end
 
+    -- Shuffle everything
     bossDeck.shuffle()
     redShopDeck.shuffle()
     purpleShopDeck.shuffle()
     greenShopDeck.shuffle()
     bossRewardDeck.shuffle()
 
-    -- Draw a new boss
-    bossDeck.takeObject({
-        position = bossCurrentPosition + Vector(0, 1, 0),
-        rotation = Constants.BOSS_ORIENTATION[levelDetail.enraged_boss],
-    })
-
-    -- Set all 3 hourglasses face up
+    -- Set the target score to the appropriate value based on the selected difficulty
+    local level = 1
+    local levelDetail = Chapter.getLevelDetails(Options.getDifficulty(), level)
+    Chapter.setupLevel(level, Options.getDifficulty())
 
     Wait.time(function()
         Options.setup_complete = true

@@ -4,6 +4,7 @@ Chapter.__index = Chapter
 local Constants = require('Constants')
 local EventManager = require('EventManager')
 local Log = require('Log').ForModule('Chapter')
+local Shop = require('Shop')
 local Ui = require('Ui')
 local Utils = require('Utils')
 
@@ -151,12 +152,12 @@ Chapter.CHAPTER_SETUP = {
         {
             chapter = 5,
             target = 48,
-            enraged_boss = false,
+            enraged_boss = true,
         },
         {
             chapter = 5,
             target = 54,
-            enraged_boss = false,
+            enraged_boss = true,
         },
         {
             chapter = 5,
@@ -311,16 +312,18 @@ function Chapter.setLevel(level, difficulty)
 
     -- For the chapter, also flip the book to the correct page
     if difficulty == Constants.NORMAL then
-        Chapter.chapter_board.Book.setPage(math.floor(level / 3))
+        Chapter.chapter_board.Book.setPage(math.floor((level-1) / 3))
     elseif difficulty == Constants.ADVANCED then
-        Chapter.chapter_board.Book.setPage(math.floor(level / 3) + Constants.ADVANCED_CHAPTER_OFFSET)
+        Chapter.chapter_board.Book.setPage(math.floor((level-1) / 3) + Constants.ADVANCED_CHAPTER_OFFSET)
     end
 
     -- Set the score track to the correct side
     Chapter.score_board.Book.setPage(difficulty == Constants.NORMAL and 0 or 1)
 end
 
-function Chapter.setupLevel(level, difficulty, preventChapterSnap)
+function Chapter.setupLevel(level, difficulty, preventChapterSnap, preventBroadcast)
+    if level < 1 or level > 16 then return end
+
     if not preventChapterSnap then
         Chapter.setLevel(level, difficulty, preventChapterSnap)
     end
@@ -331,13 +334,68 @@ function Chapter.setupLevel(level, difficulty, preventChapterSnap)
     -- Reset score to 0
     Chapter.resetCurrentScore()
 
+    -- Set target score based on chosen level
+    local levelDetails = Chapter.getLevelDetails(difficulty, level)
+    Chapter.setTargetScore(levelDetails.target)
+
     -- Flip all hourglass back
     for _, hourglass in ipairs(getObjectsWithTag(Constants.HOURGLASS)) do
         hourglass.setRotationSmooth({0, 180, 180})
     end
 
-    -- Set target score based on chosen level
-    Chapter.setTargetScore(Chapter.getLevelDetails(difficulty, level).target)
+    -- Also reset the shop and reroll tracks
+    Chapter.snapToStep(Chapter.shop_marker, 1)
+    Chapter.snapToStep(Chapter.reroll_marker, 1)
+
+    -- And close the shop
+    Shop.closeShop()
+
+    -- Flip a new boss and discard the old one, if any
+    if level % 3 == 1 then
+        local bossDeckPosition = nil
+        local bossDiscardPosition = nil
+        local bossCurrentPosition = nil
+
+        for _, snap in ipairs(Global.getSnapPoints()) do
+            if Utils.contains(snap.tags, Constants.BOSS_DECK) then
+                bossDeckPosition = snap.position
+            elseif Utils.contains(snap.tags, Constants.BOSS_DISCARD) then
+                bossDiscardPosition = snap.position
+            elseif Utils.contains(snap.tags, Constants.BOSS_CURRENT) then
+                bossCurrentPosition = snap.position
+            end
+        end
+
+        -- Discard the current boss card if any
+        local bossCard = Utils.getFirstElementAbovePosition(Vector(bossCurrentPosition) - Vector(0, 1, 0), Constants.BOSS_CARD)
+        if bossCard then
+            bossCard.setPositionSmooth(Vector(bossDiscardPosition) + Vector(0, 1, 0), false, true)
+            bossCard.setRotationSmooth({0, 180, 180}, false, true)
+        end
+
+        -- Draw a new one
+        local bossDeck = Utils.getFirstElementAbovePosition(Vector(bossDeckPosition) - Vector(0, 1, 0), Constants.BOSS_CARD)
+        if not bossDeck then return end
+
+        if bossDeck.type == 'Card' then
+            bossDeck.setPositionSmooth(Vector(bossCurrentPosition) + Vector(0, 1, 0), false, true)
+            bossDeck.setRotationSmooth(Constants.BOSS_ORIENTATION[levelDetails.enraged_boss], false, true)
+        else
+            bossDeck.takeObject({
+                position = Vector(bossCurrentPosition) + Vector(0, 1, 0),
+                rotation = Constants.BOSS_ORIENTATION[levelDetails.enraged_boss],
+                smooth = true,
+            })
+        end
+    end
+
+    if not preventBroadcast then
+        broadcastToAll('New round start', Color.Yellow)
+
+        if level % 3 == 0 then
+            broadcastToAll('Boss round!', Color.Yellow)
+        end
+    end
 end
 
 function Chapter.snapToStep(marker, step)
@@ -429,6 +487,10 @@ function Chapter.getTrackObject(markerType)
 
 end
 
+function Chapter.getShopMarker()
+    return Chapter.shop_marker
+end
+
 function Chapter.save()
     local flatSetup = {}
 
@@ -448,4 +510,7 @@ return {
     setupLevel = Chapter.setupLevel,
     getCurrentLevel = Chapter.getCurrentLevel,
     getLevelDetails = Chapter.getLevelDetails,
+    getCurrentStep = Chapter.getCurrentStep,
+    getShopMarker = Chapter.getShopMarker,
+    snapToStep = Chapter.snapToStep,
 }

@@ -1,0 +1,197 @@
+local Shop = {}
+Shop.__index = Shop
+
+local Chapter
+local Constants = require('Constants')
+local EventManager = require('EventManager')
+local Log = require('Log').ForModule('Shop')
+local Ui = require('Ui')
+local Utils = require('Utils')
+
+------------------------------------------------------
+
+function Shop.init()
+    Chapter = require('Chapter')
+
+    Shop.anchor = getObjectsWithTag(Constants.SHOP_ANCHOR)[1]
+    if not Shop.anchor then
+        Log.error('Shop anchor not found.')
+        return
+    end
+
+    -- Get the current discard/slot positions per color, as well as each shop deck position
+    Shop.discard_positions = {
+        [Constants.RED] = {},
+        [Constants.GREEN] = {},
+        [Constants.PURPLE] = {},
+    }
+    Shop.slot_positions = {
+        [Constants.RED] = {},
+        [Constants.GREEN] = {},
+        [Constants.PURPLE] = {},
+    }
+    Shop.deck_positions = {
+        [Constants.RED] = {},
+        [Constants.GREEN] = {},
+        [Constants.PURPLE] = {},
+    }
+
+    for _, snap in ipairs(Global.getSnapPoints()) do
+        if Utils.contains(snap.tags, Constants.SHOP_DISCARD) then
+            if Utils.contains(snap.tags, Constants.RED) then
+                Shop.discard_positions[Constants.RED] = snap.position
+            elseif Utils.contains(snap.tags, Constants.GREEN) then
+                Shop.discard_positions[Constants.GREEN] = snap.position
+            elseif Utils.contains(snap.tags, Constants.PURPLE) then
+                Shop.discard_positions[Constants.PURPLE] = snap.position
+            end
+        elseif Utils.contains(snap.tags, Constants.SHOP_CURRENT) then
+            if Utils.contains(snap.tags, Constants.RED) then
+                Shop.slot_positions[Constants.RED] = snap.position
+            elseif Utils.contains(snap.tags, Constants.GREEN) then
+                Shop.slot_positions[Constants.GREEN] = snap.position
+            elseif Utils.contains(snap.tags, Constants.PURPLE) then
+                Shop.slot_positions[Constants.PURPLE] = snap.position
+            end
+        elseif Utils.contains(snap.tags, Constants.SHOP_DECK) then
+            if Utils.contains(snap.tags, Constants.RED) then
+                Shop.deck_positions[Constants.RED] = snap.position
+            elseif Utils.contains(snap.tags, Constants.GREEN) then
+                Shop.deck_positions[Constants.GREEN] = snap.position
+            elseif Utils.contains(snap.tags, Constants.PURPLE) then
+                Shop.deck_positions[Constants.PURPLE] = snap.position
+            end
+        end
+    end
+
+    Shop.initUi()
+end
+
+function Shop.initUi()
+    local root = Ui.createRootOnObject('shop-anchor', Shop.anchor, 2)
+    root.scale = '0.1 0.1'
+
+    local panel = root:verticalLayout({ id = 'main-panel', width = 3000, height = 2000, y = 0, spacing = 100, })
+    panel.attributes.childForceExpandHeight = false
+    panel.attributes.childAlignment = 'MiddleCenter'
+
+    -- Open shop button
+    Shop.openShopButton = panel:button({ id = 'open-shop-button', text = 'Open Shop', fontSize = 600,
+        height = 1000,
+        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR, onClick = function()
+            Shop.openShop()
+        end
+    })
+
+    Shop.closeShopButton = panel:button({ id = 'close-shop-button', text = 'Close Shop', fontSize = 600,
+        height = 1000,
+        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR, 
+        active = false, onClick = function()
+            Shop.closeShop()
+        end
+    })
+
+    Shop.rerollShopButton = panel:button({ id = 'reroll-shop-button', text = 'Reroll Shop', fontSize = 600,
+        height = 1000,
+        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR, 
+        active = false, onClick = function()
+            Shop.rerollShop()
+        end
+    })
+end
+
+function Shop.openShop()
+    Shop.openShopButton:hide()
+
+    Wait.time(function()
+        Shop.closeShopButton:show()
+        Shop.rerollShopButton:show()
+    end, 0.4)
+
+    -- Not reroll because we don't increment the shop reroll counter
+    Shop.discardCurrentShopCards()
+    Shop.drawNewShopCards()
+end
+
+function Shop.closeShop()
+    Shop.closeShopButton:hide()
+    Shop.rerollShopButton:hide()
+    Wait.time(function()
+        Shop.openShopButton:show()
+    end, 0.4)
+
+    Shop.discardCurrentShopCards()
+end
+
+function Shop.rerollShop()
+    Shop.discardCurrentShopCards()
+    Shop.drawNewShopCards()
+
+    -- Detect current reroll step and increment it if possible
+    local step = Chapter.getCurrentStep(Chapter.getShopMarker())
+    if step < 5 then
+        Chapter.snapToStep(Chapter.getShopMarker(), step + 1)
+    end
+end
+
+-- Discard all current shop cards
+function Shop.discardCurrentShopCards()
+    -- For each current shop slot, discard the card if it exists
+    for color, position in pairs(Shop.slot_positions) do
+        local card = Utils.getFirstElementAbovePosition(Vector(position) - Vector(0, 1, 0), Constants.SHOP_CARD)
+        if card then
+            card.setPositionSmooth(Vector(Shop.discard_positions[Shop.getCardColor(card)]) + Vector(0, 1, 0))
+            card.setRotationSmooth({0.00, 180.00, 180.00})
+        end
+    end
+end
+
+-- Refill shop cards
+function Shop.drawNewShopCards()
+    -- For each current shop slot, draw a card (even if there is one)
+    for color, position in pairs(Shop.slot_positions) do
+        local deck = Utils.getFirstElementAbovePosition(Vector(Shop.deck_positions[color]) - Vector(0, 1, 0), 
+                                    Constants.SHOP_CARD)
+        if deck then
+            if deck.type == 'Card' then
+                deck.setPositionSmooth(Vector(Shop.slot_positions[color]) + Vector(0, 1, 0))
+                deck.setRotationSmooth({0.00, 180.00, 0.00})
+            else
+                deck.takeObject({
+                    position = Vector(Shop.slot_positions[color]) + Vector(0, 1, 0),
+                    rotation = {0.00, 180.00, 0.00},
+                    smooth = true,
+                })
+            end
+        end
+    end
+end
+
+function Shop.getCardColor(card)
+    if not card then return nil end
+
+    if card.hasTag(Constants.RED) then
+        return Constants.RED
+    elseif card.hasTag(Constants.GREEN) then
+        return Constants.GREEN
+    elseif card.hasTag(Constants.PURPLE) then
+        return Constants.PURPLE
+    end
+
+    return nil
+end
+
+function Shop.save()
+    local flatSetup = {}
+
+    return flatSetup
+end
+
+------------------------------------------------------
+
+return {
+    init = Shop.init,
+    save = Shop.save,
+    closeShop = Shop.closeShop,
+    openShop = Shop.openShop,
+}
