@@ -6,10 +6,8 @@
 -- Global vars: underscore: CONSTANTS_LIKE_THIS and variables_like_this
 -- Local vars: camelCase
 
--- DONE: Use rotating snap on crafting station die side
--- DONE: When flipping an hourglass, reset the die reroll counter
--- DONE: Middle click on counter: reset to 0
-
+-- TODO: Have one extra slot per result row, in case we get the +1? might cause issues
+-- TODO: Only reset die reroll if flipping hourglass face down?
 -- TODO: Add counter UI to the score?
 -- TODO: On next round press, ping all torches? and chat message warning
 -- TODO: Result summer -> button to add +1 every time your click (+5 on middle click), then apply it to the score marker when pressing ok?
@@ -33,8 +31,9 @@ local EventManager = require('EventManager')
 _G.EventManager = EventManager  -- for reflection/debugging access
 local GlobalUi = require('GlobalUi')
 local Log = require('Log').ForModule('Global')
-local ResourceCounter = require('ResourceCounter')
 local Options = require('Options')
+local ResourceCounter = require('ResourceCounter')
+local ResultTableau = require('ResultTableau')
 local Shop = require('Shop')
 local Ui = require('Ui')
 
@@ -68,6 +67,7 @@ function onLoad(script_state)
     ResourceCounter.init()
     CraftingStation.init()
     Shop.init()
+    ResultTableau.init()
     
     if not Options.isManualSetup() then
         Ui.globalRefresh()

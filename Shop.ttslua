@@ -6,6 +6,7 @@ local Constants = require('Constants')
 local EventManager = require('EventManager')
 local Log = require('Log').ForModule('Shop')
 local ResourceCounter = require('ResourceCounter')
+local ResultTableau = require('ResultTableau')
 local Ui = require('Ui')
 local Utils = require('Utils')
 
@@ -21,47 +22,50 @@ function Shop.init()
     end
 
     -- Get the current discard/slot positions per color, as well as each shop deck position
-    Shop.discard_positions = {
-        [Constants.RED] = {},
-        [Constants.GREEN] = {},
-        [Constants.PURPLE] = {},
+    Shop.positions = {
+        [Constants.RED] = { discard = nil, slot = nil, extra_slot = nil, deck = nil },
+        [Constants.GREEN] = { discard = nil, slot = nil, extra_slot = nil, deck = nil },
+        [Constants.PURPLE] = { discard = nil, slot = nil, extra_slot = nil, deck = nil },
     }
-    Shop.slot_positions = {
-        [Constants.RED] = {},
-        [Constants.GREEN] = {},
-        [Constants.PURPLE] = {},
-    }
-    Shop.deck_positions = {
-        [Constants.RED] = {},
-        [Constants.GREEN] = {},
-        [Constants.PURPLE] = {},
+
+    local colors = { Constants.RED, Constants.GREEN, Constants.PURPLE }
+    local typePerTag = {
+        [Constants.SHOP_DISCARD] = 'discard',
+        [Constants.SHOP_CURRENT] = 'slot',
+        [Constants.SHOP_EXTRA]   = 'extra',
+        [Constants.SHOP_DECK]    = 'deck',
     }
 
     for _, snap in ipairs(Global.getSnapPoints()) do
-        if Utils.contains(snap.tags, Constants.SHOP_DISCARD) then
-            if Utils.contains(snap.tags, Constants.RED) then
-                Shop.discard_positions[Constants.RED] = snap.position
-            elseif Utils.contains(snap.tags, Constants.GREEN) then
-                Shop.discard_positions[Constants.GREEN] = snap.position
-            elseif Utils.contains(snap.tags, Constants.PURPLE) then
-                Shop.discard_positions[Constants.PURPLE] = snap.position
+        -- If this snap matches any shop-related tag, assign positions per color
+        for tag, role in pairs(typePerTag) do
+            if Utils.contains(snap.tags, tag) then
+                for _, color in ipairs(colors) do
+                    if Utils.contains(snap.tags, color) then
+                        -- Duplicate warning
+                        if Shop.positions[color][role] then
+                            Log:error('Overwriting %s for %s', tostring(role), tostring(color))
+                        end
+                        Shop.positions[color][role] = snap.position
+                    end
+                end
             end
-        elseif Utils.contains(snap.tags, Constants.SHOP_CURRENT) then
-            if Utils.contains(snap.tags, Constants.RED) then
-                Shop.slot_positions[Constants.RED] = snap.position
-            elseif Utils.contains(snap.tags, Constants.GREEN) then
-                Shop.slot_positions[Constants.GREEN] = snap.position
-            elseif Utils.contains(snap.tags, Constants.PURPLE) then
-                Shop.slot_positions[Constants.PURPLE] = snap.position
-            end
-        elseif Utils.contains(snap.tags, Constants.SHOP_DECK) then
-            if Utils.contains(snap.tags, Constants.RED) then
-                Shop.deck_positions[Constants.RED] = snap.position
-            elseif Utils.contains(snap.tags, Constants.GREEN) then
-                Shop.deck_positions[Constants.GREEN] = snap.position
-            elseif Utils.contains(snap.tags, Constants.PURPLE) then
-                Shop.deck_positions[Constants.PURPLE] = snap.position
-            end
+        end
+    end
+
+    -- Ensure required positions exist
+    for _, color in ipairs(colors) do
+        if not Shop.positions[color].deck then
+            Log:error('Missing SHOP_DECK snap for color %s.', tostring(color))
+        end
+        if not Shop.positions[color].slot then
+            Log:error('Missing SHOP_CURRENT snap for color %s.', tostring(color))
+        end
+        if not Shop.positions[color].discard then
+            Log:info('Missing SHOP_DISCARD snap for color %s.', tostring(color))
+        end
+        if not Shop.positions[color].extra_slot then
+            Log:info('Missing SHOP_EXTRA snap for color %s.', tostring(color))
         end
     end
 
@@ -153,11 +157,19 @@ end
 
 -- Discard all current shop cards
 function Shop.discardCurrentShopCards()
-    -- For each current shop slot, discard the card if it exists
-    for color, position in pairs(Shop.slot_positions) do
-        local card = Utils.getFirstElementAbovePosition(Vector(position) - Vector(0, 1, 0), Constants.SHOP_CARD)
+    -- For each current shop slot and extra slot, discard the card if it exists
+    for color, positions in pairs(Shop.positions) do
+        -- Slot
+        local card = Utils.getFirstElementAbovePosition(Vector(positions.slot) - Vector(0, 1, 0), Constants.SHOP_CARD)
         if card then
-            card.setPositionSmooth(Vector(Shop.discard_positions[Shop.getCardColor(card)]) + Vector(0, 1, 0))
+            card.setPositionSmooth(Vector(Shop.positions[Shop.getCardColor(card)].discard) + Vector(0, 1, 0))
+            card.setRotationSmooth({0.00, 180.00, 180.00})
+        end
+
+        -- Extra slot
+        local card = Utils.getFirstElementAbovePosition(Vector(positions.extra_slot) - Vector(0, 1, 0), Constants.SHOP_CARD)
+        if card then
+            card.setPositionSmooth(Vector(Shop.positions[Shop.getCardColor(card)].discard) + Vector(0, 1, 0))
             card.setRotationSmooth({0.00, 180.00, 180.00})
         end
     end
@@ -165,20 +177,37 @@ end
 
 -- Refill shop cards
 function Shop.drawNewShopCards()
-    -- For each current shop slot, draw a card (even if there is one)
-    for color, position in pairs(Shop.slot_positions) do
-        local deck = Utils.getFirstElementAbovePosition(Vector(Shop.deck_positions[color]) - Vector(0, 1, 0), 
+    -- Mapping from color to the ResultTableau effect that enables the extra shop slot
+    local effectNameByColor = {
+        [Constants.RED] = Constants.EFFECT_EXTRA_RED_SHOP_SLOT,
+        [Constants.GREEN] = Constants.EFFECT_EXTRA_GREEN_SHOP_SLOT,
+        [Constants.PURPLE] = Constants.EFFECT_EXTRA_PURPLE_SHOP_SLOT,
+    }
+
+    -- For each current shop slot and extra slot, draw a card (even if there is one)
+    for color, positions in pairs(Shop.positions) do
+        local deck = Utils.getFirstElementAbovePosition(Vector(Shop.positions[color].deck) - Vector(0, 1, 0), 
                                     Constants.SHOP_CARD)
         if deck then
             if deck.type == 'Card' then
-                deck.setPositionSmooth(Vector(Shop.slot_positions[color]) + Vector(0, 1, 0))
+                deck.setPositionSmooth(Vector(positions.slot) + Vector(0, 1, 0))
                 deck.setRotationSmooth({0.00, 180.00, 0.00})
             else
                 deck.takeObject({
-                    position = Vector(Shop.slot_positions[color]) + Vector(0, 1, 0),
+                    position = Vector(positions.slot) + Vector(0, 1, 0),
                     rotation = {0.00, 180.00, 0.00},
                     smooth = true,
                 })
+
+                -- Check if we have the requirement for the extra slot
+                local effectName = effectNameByColor[color]
+                if effectName and ResultTableau.getEffectValue(effectName) == 1 then
+                    deck.takeObject({
+                        position = Vector(positions.extra_slot) + Vector(0, 1, 0),
+                        rotation = {0.00, 180.00, 0.00},
+                        smooth = true,
+                    })
+                end
             end
         end
     end

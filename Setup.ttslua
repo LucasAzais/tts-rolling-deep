@@ -48,7 +48,7 @@ function Setup.setup()
     Chapter.setupLevel(level, Options.getDifficulty())
 
     Chapter.displayUi()
-    Shop.displayUi()
+    -- Shop.displayUi() -- Done in Chapter.setupLevel, commented to avoid extra animation
 
     Wait.time(function()
         Options.setup_complete = true

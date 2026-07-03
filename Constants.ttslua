@@ -84,6 +84,16 @@ Constants.POTION_3 = 'Potion3'
 Constants.FACE_CRAFT = 'FaceCraft'
 Constants.CRAFTING_STATION = 'CraftingStation'
 Constants.SHOP_ANCHOR = 'ShopAnchor'
+Constants.SHOP_EXTRA = 'ShopExtra'
+Constants.RESULT_TABLEAU = 'ResultTableau'
+
+-- Effects
+Constants.EFFECT_EXTRA_RED_SHOP_SLOT = 'extraRedShopSlot'
+Constants.EFFECT_EXTRA_GREEN_SHOP_SLOT = 'extraGreenShopSlot'
+Constants.EFFECT_EXTRA_PURPLE_SHOP_SLOT = 'extraPurpleShopSlot'
+Constants.EFFECT_DOUBLE_POTION_INCOME = 'doublePotionIncome'
+Constants.EFFECT_BLOCK_COIN_INCOME = 'blockCoinIncome'
+Constants.EFFECT_MINUS_1_DIE_REROLL_PRICE = 'minus1DieRerollPrice'
 
 Constants.ADVANCED_CHAPTER_OFFSET = 5
 

@@ -1,0 +1,97 @@
+local ResultTableau = {}
+ResultTableau.__index = ResultTableau
+
+local Constants = require('Constants')
+local EventManager = require('EventManager')
+local Log = require('Log').ForModule('ResultTableau')
+local Ui = require('Ui')
+local Utils = require('Utils')
+
+------------------------------------------------------
+
+function ResultTableau.init()
+    ResultTableau.cacheElements()
+end
+
+function ResultTableau.cacheElements()
+    ResultTableau.rows = {
+        {{}, {}, {}, {}},
+        {{}, {}, {}},
+        {{}, {}},
+        {{}},
+    }
+
+    for _, snap in ipairs(Global.getSnapPoints()) do
+        if Utils.contains(snap.tags, Constants.RESULT_TABLEAU) then
+            for _, tag in ipairs(snap.tags) do
+                -- If tag isn't ResultTableau, it's ResultTableauXY so parse that for the row and column
+                if tag ~= Constants.RESULT_TABLEAU then
+                    local row, column = tag:match("ResultTableau(%d)(%d)")
+                    if row and column then
+                        ResultTableau.rows[tonumber(row)][tonumber(column)].snapPosition = snap.position
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Check if a specific effect appears in any result row (does not check the value)
+function ResultTableau.hasEffect(effect)
+    for _, row in ipairs(ResultTableau.rows) do
+        for _, column in ipairs(row) do
+            local card = Utils.getFirstElementAbovePosition(Vector(column.snapPosition) - Vector(0, 1, 0), Constants.SHOP_CARD)
+
+            if card then
+                local cardData = JSON.decode(card.getGMNotes())
+
+                if cardData and cardData.effects then
+                    for cardEffect, value in pairs(cardData.effects) do
+                        if cardEffect == effect then
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return false
+end
+
+function ResultTableau.getEffectValue(effect)
+    for _, row in ipairs(ResultTableau.rows) do
+        for _, column in ipairs(row) do
+            local card = Utils.getFirstElementAbovePosition(Vector(column.snapPosition) - Vector(0, 1, 0), Constants.SHOP_CARD)
+
+            if card then
+                local cardData = JSON.decode(card.getGMNotes())
+
+                if cardData and cardData.effects then
+                    for cardEffect, value in pairs(cardData.effects) do
+                        if cardEffect == effect then
+                            return value
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return nil
+end
+
+function ResultTableau.save()
+    local flatSetup = {}
+
+    return flatSetup
+end
+
+------------------------------------------------------
+
+return {
+    init = ResultTableau.init,
+    save = ResultTableau.save,
+    hasEffect = ResultTableau.hasEffect,
+    getEffectValue = ResultTableau.getEffectValue,
+}

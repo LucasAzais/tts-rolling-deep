@@ -4,6 +4,7 @@ Chapter.__index = Chapter
 local Constants = require('Constants')
 local EventManager = require('EventManager')
 local Log = require('Log').ForModule('Chapter')
+local ResultTableau = require('ResultTableau')
 local Shop = require('Shop')
 local Ui = require('Ui')
 local Utils = require('Utils')
@@ -187,7 +188,7 @@ function Chapter.init()
     for _, hourglass in ipairs(getObjectsWithTag(Constants.HOURGLASS)) do
         EventManager.addHandler('onRotate', function(object)
             -- Reset reroll track
-            Chapter.snapToStep(Chapter.reroll_marker, 1)
+            Chapter.resetDieReroll()
         end, hourglass)
     end
 end
@@ -312,12 +313,17 @@ function Chapter.resetCurrentScore()
     Chapter.setCurrentScore(0)
 end
 
-function Chapter.resetShop()
+function Chapter.resetShopReroll()
     Chapter.snapToStep(Chapter.shop_marker, 1)
 end
 
-function Chapter.resetReroll()
-    Chapter.snapToStep(Chapter.reroll_marker, 1)
+function Chapter.resetDieReroll()
+    -- For reroll, step 1 -> reroll 0, step 2 -> reroll 1
+    if ResultTableau.getEffectValue(Constants.EFFECT_MINUS_1_DIE_REROLL_PRICE) then
+        Chapter.snapToStep(Chapter.reroll_marker, 1)
+    else
+        Chapter.snapToStep(Chapter.reroll_marker, 2)
+    end
 end
 
 function Chapter.setTargetScore(score)
@@ -388,8 +394,8 @@ function Chapter.setupLevel(level, difficulty, preventChapterSnap, preventBroadc
     end
 
     -- Also reset the shop and reroll tracks
-    Chapter.snapToStep(Chapter.shop_marker, 1)
-    Chapter.snapToStep(Chapter.reroll_marker, 1)
+    Chapter.resetShopReroll()
+    Chapter.resetDieReroll()
 
     -- And close the shop
     Shop.closeShop()
@@ -542,8 +548,8 @@ return {
     displayUi = Chapter.displayUi,
     resetCurrentScore = Chapter.resetCurrentScore,
     setTargetScore = Chapter.setTargetScore,
-    resetShop = Chapter.resetShop,
-    resetReroll = Chapter.resetReroll,
+    resetShopReroll = Chapter.resetShopReroll,
+    resetDieReroll = Chapter.resetDieReroll,
     setLevel = Chapter.setLevel,
     setupLevel = Chapter.setupLevel,
     getCurrentLevel = Chapter.getCurrentLevel,
