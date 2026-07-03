@@ -147,6 +147,14 @@ function CraftingStation.craftDieFaceOntoDie()
 
     die.setDecals(decals)
 
+    -- Discard the card used for crafting
+    for _, snap in ipairs(Global.getSnapPoints()) do
+        if Utils.contains(snap.tags, Constants.SHOP_DISCARD) and Utils.contains(snap.tags, cardColor) then
+            card.setPositionSmooth(Vector(snap.position) + Vector(0, 1, 0), false, true)
+            card.setRotationSmooth({0.00, 180.00, 180.00}, false, true)
+        end
+    end
+
     broadcastToAll('Crafting complete!', Color.Green)
 end
 

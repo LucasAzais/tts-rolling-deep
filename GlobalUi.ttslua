@@ -129,18 +129,18 @@ function GlobalUi.initSetupUi()
         alignment = 'MiddleLeft',
     })
 
-    local normalDifficultyToggle = difficultyHl:toggleButton({
-        id = 'normal-difficulty', text = Constants.NORMAL, fontSize = 30,
+    local standardDifficultyToggle = difficultyHl:toggleButton({
+        id = 'standard-difficulty', text = Constants.STANDARD, fontSize = 30,
         colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR,
-        isOn = (Options.selected_difficulty == Constants.NORMAL or Options.selected_difficulty == nil),
+        isOn = (Options.selected_difficulty == Constants.STANDARD or Options.selected_difficulty == nil),
         onValueChanged = function(_, isOn) 
             if isOn == 'True' then
-                Options.selected_difficulty = Constants.NORMAL
+                Options.selected_difficulty = Constants.STANDARD
             end
         end
     })
-    normalDifficultyToggle.attributes.selectedBackgroundColor = Constants.BUTTON_BACKGROUND_COLOR
-    normalDifficultyToggle.attributes.deselectedBackgroundColor = Constants.BUTTON_DESELECTED_COLOR
+    standardDifficultyToggle.attributes.selectedBackgroundColor = Constants.BUTTON_BACKGROUND_COLOR
+    standardDifficultyToggle.attributes.deselectedBackgroundColor = Constants.BUTTON_DESELECTED_COLOR
 
     local advancedDifficultyToggle = difficultyHl:toggleButton({
         id = 'advanced-difficulty', text = Constants.ADVANCED, fontSize = 30,

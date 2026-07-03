@@ -1,10 +1,11 @@
 local Setup = {}
 Setup.__index = Setup
 
+local Chapter = require('Chapter')
 local Constants = require('Constants')
 local Options = require('Options')
 local Log = require('Log').ForModule('Setup')
-local Chapter = require('Chapter')
+local Shop = require('Shop')
 local Utils = require('Utils')
 
 ------------------------------------------------------
@@ -45,6 +46,9 @@ function Setup.setup()
     local level = 1
     local levelDetail = Chapter.getLevelDetails(Options.getDifficulty(), level)
     Chapter.setupLevel(level, Options.getDifficulty())
+
+    Chapter.displayUi()
+    Shop.displayUi()
 
     Wait.time(function()
         Options.setup_complete = true

@@ -9,7 +9,7 @@ function Options.init(savedData)
     Options.setup_complete = savedData.setup_complete or false
     Options.manual_setup = savedData.manual_setup or false
 
-    Options.selected_difficulty = savedData.selected_difficulty or Constants.NORMAL
+    Options.selected_difficulty = savedData.selected_difficulty or Constants.STANDARD
 end
 
 function Options.isSetupComplete()

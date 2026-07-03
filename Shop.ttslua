@@ -5,6 +5,7 @@ local Chapter
 local Constants = require('Constants')
 local EventManager = require('EventManager')
 local Log = require('Log').ForModule('Shop')
+local ResourceCounter = require('ResourceCounter')
 local Ui = require('Ui')
 local Utils = require('Utils')
 
@@ -78,7 +79,8 @@ function Shop.initUi()
     -- Open shop button
     Shop.openShopButton = panel:button({ id = 'open-shop-button', text = 'Open Shop', fontSize = 600,
         height = 1000,
-        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR, onClick = function()
+        colors = Constants.BUTTON_BACKGROUND_COLORS, textColor = Constants.BUTTON_TEXT_COLOR, 
+        active = false, onClick = function()
             Shop.openShop()
         end
     })
@@ -98,6 +100,10 @@ function Shop.initUi()
             Shop.rerollShop()
         end
     })
+end
+
+function Shop.displayUi()
+    Shop.openShopButton:show()
 end
 
 function Shop.openShop()
@@ -124,11 +130,22 @@ function Shop.closeShop()
 end
 
 function Shop.rerollShop()
+    -- Check the player has enough coins
+    local step = Chapter.getCurrentStep(Chapter.getShopMarker())
+    local coins = ResourceCounter.countResource(ResourceCounter.getCoinTile())
+
+    if coins < step then
+        broadcastToAll('Not enough coins to reroll shop.', Color.Yellow)
+        return
+    else
+        -- Spend the coins
+        ResourceCounter.adjustResource(ResourceCounter.getCoinTile(), -step)
+    end
+
     Shop.discardCurrentShopCards()
     Shop.drawNewShopCards()
 
     -- Detect current reroll step and increment it if possible
-    local step = Chapter.getCurrentStep(Chapter.getShopMarker())
     if step < 5 then
         Chapter.snapToStep(Chapter.getShopMarker(), step + 1)
     end
@@ -192,6 +209,7 @@ end
 return {
     init = Shop.init,
     save = Shop.save,
+    displayUi = Shop.displayUi,
     closeShop = Shop.closeShop,
     openShop = Shop.openShop,
 }

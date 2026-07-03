@@ -6,25 +6,25 @@
 -- Global vars: underscore: CONSTANTS_LIKE_THIS and variables_like_this
 -- Local vars: camelCase
 
--- TODO: Add snap on both shop and die reroll track on 0 space (-1 clover reroll cost card)
+-- DONE: Use rotating snap on crafting station die side
+-- DONE: When flipping an hourglass, reset the die reroll counter
+-- DONE: Middle click on counter: reset to 0
+
+-- TODO: Add counter UI to the score?
+-- TODO: On next round press, ping all torches? and chat message warning
+-- TODO: Result summer -> button to add +1 every time your click (+5 on middle click), then apply it to the score marker when pressing ok?
+-- TODO: Add chat message "Player gained X coins" delayed after using the tile counter (need to take into account manual changes as well I think)
+-- TODO: Add reroll button next to the potion tile to automate reroll cost?
 -- TODO: Chapter has enrage_boss even on sections with no boss. Also need enrage_true on round 1 of the chapter to be able to draw an enraged boss
 -- TODO: Handle the case where multiple cards per color are possible in shop extra slots above? might only need the one extra slot
--- TODO: Auto pay for reroll
--- TODO: Change mushroom count to purple maybe
--- TODO: When flipping an hourglass, reset the die reroll counter
--- TODO: Next round button
 -- TODO: Discard face up might be more convenient
 -- TODO: Detect when current score > target?
--- TODO: Add some controls to mushrooms? (+1, -1 when clicking on the counter)
--- TODO: Price reminder on reroll shop button
--- TODO: Auto discard card after crafting?
--- TODO: Check if boss is really random, I keep getting similar order
--- TODO: Add coin/potion counter with interest between brackets
--- TODO: currency breakdown?
--- TODO: check we have 3 coins and 3 potions still during setup?
--- TODO: change chapter -> discard boss card and boss reward if there is one (but it at the bottom or destroy it?)
--- TODO: might need to keep open/closed shop status between saves (for rollbacks)
--- TODO: think of a way to implement auto detect for all effects, auto roll and auto count etc I'm sure it's possible honestly
+-- TODO: Click on income icon for income? or use the shop UI maybe? or above the next round button
+
+-- IDEA: Add interest between brackets
+-- IDEA: check we have 3 coins and 3 potions still during setup?
+-- IDEA: might need to keep open/closed shop status between saves (for rollbacks)
+-- IDEA: think of a way to implement auto detect for all effects, auto roll and auto count etc I'm sure it's possible honestly (but should it?)
 
 local Chapter = require('Chapter')
 local Constants = require('Constants')
@@ -33,7 +33,7 @@ local EventManager = require('EventManager')
 _G.EventManager = EventManager  -- for reflection/debugging access
 local GlobalUi = require('GlobalUi')
 local Log = require('Log').ForModule('Global')
-local MushroomCounter = require('MushroomCounter')
+local ResourceCounter = require('ResourceCounter')
 local Options = require('Options')
 local Shop = require('Shop')
 local Ui = require('Ui')
@@ -65,7 +65,7 @@ function onLoad(script_state)
     Options.init(savedData.options or {})
     GlobalUi.init()
     Chapter.init()
-    MushroomCounter.init()
+    ResourceCounter.init()
     CraftingStation.init()
     Shop.init()
     
@@ -73,6 +73,9 @@ function onLoad(script_state)
         Ui.globalRefresh()
 
         if Options.isSetupComplete() then
+            Chapter.displayUi()
+            Shop.displayUi()
+
             broadcastToAll('Game loaded', Color.Green)
         else
             Wait.frames(function()

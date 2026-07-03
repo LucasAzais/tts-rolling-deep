@@ -381,6 +381,25 @@ function Utils.getRandomPositionAroundPosition(position, radius, fixedY)
     return { randomX, randomY, randomZ }
 end
 
+-- Returns a random position above a given tile (ie. shape) with a given padding to avoid edges
+function Utils.getRandomPositionAboveTile(tile, padding, fixedY)
+    if not tile then return nil end
+
+    padding = padding or 0
+
+    local bounds = tile.getBoundsNormalized()
+    local center = bounds.center
+
+    local halfWidth = bounds.size.x / 2 - padding
+    local halfDepth = bounds.size.z / 2 - padding
+
+    local x = center.x + (math.random() * 2 - 1) * halfWidth
+    local z = center.z + (math.random() * 2 - 1) * halfDepth
+    local y = fixedY or (center.y + bounds.size.y / 2 + 1)
+
+    return {x, y, z}
+end
+
 function Utils.equalsAbout(firstNumber, secondNumber, precision)
     if not precision then precision = 0.01 end
 

@@ -1,0 +1,306 @@
+local ResourceCounter = {}
+ResourceCounter.__index = ResourceCounter
+
+local Constants = require('Constants')
+local EventManager = require('EventManager')
+local Log = require('Log').ForModule('ResourceCounter')
+local Ui = require('Ui')
+local Utils = require('Utils')
+
+------------------------------------------------------
+
+-- Make sure the bigger denomination is first
+ResourceCounter.CONFIG = {
+    [Constants.COIN] = {
+        bagTag = Constants.COIN_BAG,
+        denominations = { 5, 1 },
+        tileSize = 3,
+        updateFunction = function() ResourceCounter.updateCoinCounters() end,
+    },
+    [Constants.MUSHROOM] = {
+        bagTag = Constants.MUSHROOM_BAG,
+        denominations = { 5, 1 },
+        tileSize = 2,
+        updateFunction = function() ResourceCounter.updateMushroomCounters() end,
+    },
+    [Constants.POTION] = {
+        bagTag = Constants.POTION_BAG,
+        denominations = { 3, 1 },
+        tileSize = 3,
+        updateFunction = function() ResourceCounter.updatePotionCounters() end,
+    },
+}
+
+function ResourceCounter.init()
+    ResourceCounter.cacheElements()
+
+    ResourceCounter.initUi()
+
+    EventManager.addHandler('onObjectDrop', function(_, object)
+        if Utils.contains(object.getTags(), Constants.MUSHROOM) then
+            ResourceCounter.updateMushroomCounters()
+        elseif Utils.contains(object.getTags(), Constants.COIN) then
+            ResourceCounter.updateCoinCounters()
+        elseif Utils.contains(object.getTags(), Constants.POTION) then
+            ResourceCounter.updatePotionCounters()
+        end
+    end)
+end
+
+function ResourceCounter.cacheElements()
+    ResourceCounter.coinTile = getObjectsWithTag(Constants.COIN_TILE)[1]
+    ResourceCounter.potionTile = getObjectsWithTag(Constants.POTION_TILE)[1]
+end
+
+function ResourceCounter.initUi()
+    -- Create the UI for mushroom tiles
+    local mushroomTiles = getObjectsWithTag(Constants.MUSHROOM_TILE)
+    ResourceCounter.counters = {}
+
+    for index, tile in ipairs(mushroomTiles) do
+        local mushroomTileRoot = Ui.createRootOnObject('mushroom-tile-' .. index, tile, 1.2)
+        mushroomTileRoot.scale = '0.2 0.2'
+
+        local panel = mushroomTileRoot:panel({ id = 'main-panel', width = 650, height = 700, x = 200, y = 0, })
+        ResourceCounter.counters[tile.getGUID()] = panel:text({ 
+            id = 'counter', text = tostring(ResourceCounter.countResource(tile)), fontSize = 600, 
+            color = Constants.MUSHROOM_TEXT_COLOR, })
+            
+        local mushroomIncrement = panel:panel({
+            id = 'increment-button',
+            onClick = function(_, button) 
+                if button == '-3' then
+                    ResourceCounter.adjustResource(tile, -ResourceCounter.countResource(tile))
+                elseif button == '-2' then
+                    ResourceCounter.adjustResource(tile, -1)
+                else
+                    ResourceCounter.adjustResource(tile, 1)
+                end
+            end
+        })
+    end
+
+
+    -- UI for the coin tile
+    local coinTileRoot = Ui.createRootOnObject('coin-tile', ResourceCounter.coinTile, 1.1)
+    coinTileRoot.scale = '0.2 0.2'
+
+    local panel = coinTileRoot:panel({ id = 'main-panel', width = 250, height = 200, x = 105, y = 0, })
+    ResourceCounter.counters[ResourceCounter.coinTile.getGUID()] = panel:text({ 
+        id = 'counter', text = tostring(ResourceCounter.countResource(ResourceCounter.coinTile)), fontSize = 150, 
+        color = Constants.COIN_TEXT_COLOR, })
+
+    local coinIncrement = panel:panel({
+        id = 'increment-button',
+        onClick = function(_, button) 
+            if button == '-3' then
+                ResourceCounter.adjustResource(ResourceCounter.coinTile, -ResourceCounter.countResource(ResourceCounter.coinTile))
+            elseif button == '-2' then
+                ResourceCounter.adjustResource(ResourceCounter.coinTile, -1)
+            else
+                ResourceCounter.adjustResource(ResourceCounter.coinTile, 1)
+            end
+        end
+    })
+
+    -- UI for the potion tile
+    local potionTileRoot = Ui.createRootOnObject('potion-tile', ResourceCounter.potionTile, 1.1)
+    potionTileRoot.scale = '0.19 0.19'
+
+    local panel = potionTileRoot:panel({ id = 'main-panel', width = 250, height = 200, x = 104, y = 0 })
+    ResourceCounter.counters[ResourceCounter.potionTile.getGUID()] = panel:text({
+        id = 'counter', text = tostring(ResourceCounter.countResource(ResourceCounter.potionTile)), fontSize = 150,
+        color = Constants.POTION_TEXT_COLOR, })
+
+    local potionIncrement = panel:panel({
+        id = 'increment-button',
+        onClick = function(_, button) 
+            if button == '-3' then
+                ResourceCounter.adjustResource(ResourceCounter.potionTile, -ResourceCounter.countResource(ResourceCounter.potionTile))
+            elseif button == '-2' then
+                ResourceCounter.adjustResource(ResourceCounter.potionTile, -1)
+            else
+                ResourceCounter.adjustResource(ResourceCounter.potionTile, 1)
+            end
+        end
+    })
+end
+
+function ResourceCounter.updateAllCounters()
+    ResourceCounter.updateMushroomCounters()
+    ResourceCounter.updateCoinCounters()
+    ResourceCounter.updatePotionCounters()
+end
+
+function ResourceCounter.updateMushroomCounters()
+    local mushroomTiles = getObjectsWithTag(Constants.MUSHROOM_TILE)
+
+    for _, tile in ipairs(mushroomTiles) do
+        local counter = ResourceCounter.counters[tile.getGUID()]
+
+        if counter then
+            counter:setText(tostring(ResourceCounter.countResource(tile)))
+        end
+    end
+end
+
+function ResourceCounter.updateCoinCounters()
+    local coinTile = getObjectsWithTag(Constants.COIN_TILE)[1]
+    local counter = ResourceCounter.counters[coinTile.getGUID()]
+
+    if counter then
+        counter:setText(tostring(ResourceCounter.countResource(coinTile)))
+    end
+end
+
+function ResourceCounter.updatePotionCounters()
+    local potionTile = getObjectsWithTag(Constants.POTION_TILE)[1]
+
+    local counter = ResourceCounter.counters[potionTile.getGUID()]
+
+    if counter then
+        counter:setText(tostring(ResourceCounter.countResource(potionTile)))
+    end
+end
+
+-- Return the count of a resource on a specific resource tile
+function ResourceCounter.countResource(resourceTile)
+    local resourcePrefix = ResourceCounter.getResourceType(resourceTile)
+    local hitObjects = Utils.getObjectsAboveElement(resourceTile, resourcePrefix)
+    local total = 0
+
+    for _, resource in ipairs(hitObjects) do
+        if Utils.contains(resource.getTags(), resourcePrefix .. '1') then
+            total = total + 1
+        elseif Utils.contains(resource.getTags(), resourcePrefix .. '3') then
+            total = total + 3
+        elseif Utils.contains(resource.getTags(), resourcePrefix .. '5') then
+            total = total + 5
+        end
+    end
+
+    return total
+end
+
+function ResourceCounter.adjustResource(resourceTile, amount)
+    local resourceType = ResourceCounter.getResourceType(resourceTile)
+    local config = ResourceCounter.CONFIG[resourceType]
+    if not config then return end
+
+    -- Calculate the final count and clamp it
+    local newCount = ResourceCounter.countResource(resourceTile) + amount
+    if newCount < 0 then newCount = 0 end
+
+    -- Check what's already present
+    local hitObjects = Utils.getObjectsAboveElement(resourceTile, resourceType)
+    local currentCounts = {}
+
+    for _, denomination in ipairs(config.denominations) do
+        currentCounts[denomination] = 0
+    end
+
+    for _, object in ipairs(hitObjects) do
+        local tags = object.getTags()
+
+        for _, denomination in ipairs(config.denominations) do
+            if Utils.contains(tags, resourceType .. denomination) then
+                currentCounts[denomination] = currentCounts[denomination] + 1
+                break
+            end
+        end
+    end
+
+    -- Calculate the currency spread we want
+    local wantedCounts = {}
+    local remaining = newCount
+
+    for _, denomination in ipairs(config.denominations) do
+        -- Check how many tokens are left
+        local bag = getObjectsWithAllTags({config.bagTag, resourceType .. denomination})[1]
+        local inBag = bag.getQuantity()
+        local alreadyOnTile = currentCounts[denomination] or 0
+
+        local availableTokens = inBag + alreadyOnTile
+
+        -- Check how many we want and clamp is to available tokens
+        wantedCounts[denomination] = math.floor(remaining / denomination)
+        wantedCounts[denomination] = math.min(wantedCounts[denomination], availableTokens)
+
+        -- Reduce the remaining quantity by what's wanted
+        remaining = remaining - wantedCounts[denomination] * denomination
+    end
+
+    if remaining > 0 then
+        -- Silent fail for now
+        -- broadcastToAll('Not enough tokens available to adjust the ' .. resourceType .. ' to ' .. newCount, Color.Yellow)
+        return
+    end
+
+    -- Then for each of them, modify the resources accordingly
+    local spawnIndex = 0
+    for _, denomination in ipairs(config.denominations) do
+        local delta = wantedCounts[denomination] - currentCounts[denomination]
+        local bag = getObjectsWithAllTags({config.bagTag, resourceType .. denomination})[1]
+
+        if delta > 0 then
+            for i = 1, delta do
+                bag.takeObject({
+                    position = Utils.getRandomPositionAboveTile(resourceTile, 0.4, 3 + spawnIndex * 0.3),
+                    rotation = {0, 180, 0},
+                    smooth = false,
+                })
+                spawnIndex = spawnIndex + 1
+            end
+        elseif delta < 0 then
+            for _, object in ipairs(hitObjects) do
+                if delta >= 0 then break end
+
+                if Utils.contains(object.getTags(), resourceType .. denomination) then
+                    object.setPosition(Vector(bag.getPosition()) + Vector(0, 1, 0))
+                    bag.putObject(object)
+                    delta = delta + 1
+                end
+            end
+        end
+    end
+
+    -- Update the counter
+    local counter = ResourceCounter.counters[resourceTile.getGUID()]
+    counter:setText(tostring(newCount))
+end
+
+function ResourceCounter.getResourceType(tile)
+    if Utils.contains(tile.getTags(), Constants.MUSHROOM_TILE) then
+        return Constants.MUSHROOM
+    elseif Utils.contains(tile.getTags(), Constants.COIN_TILE) then
+        return Constants.COIN
+    elseif Utils.contains(tile.getTags(), Constants.POTION_TILE) then
+        return Constants.POTION
+    end
+end
+
+function ResourceCounter.getCoinTile()
+    return ResourceCounter.coinTile
+end
+
+function ResourceCounter.getPotionTile()
+    return ResourceCounter.potionTile
+end
+
+function ResourceCounter.save()
+    local flatSetup = {}
+
+    return flatSetup
+end
+
+------------------------------------------------------
+
+return {
+    init = ResourceCounter.init,
+    save = ResourceCounter.save,
+    updateAllCounters = ResourceCounter.updateAllCounters,
+    countResource = ResourceCounter.countResource,
+    getCoinTile = ResourceCounter.getCoinTile,
+    getPotionTile = ResourceCounter.getPotionTile,
+    adjustResource = ResourceCounter.adjustResource,
+}
